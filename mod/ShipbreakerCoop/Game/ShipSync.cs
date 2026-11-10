@@ -48,10 +48,12 @@ namespace ShipbreakerCoop.Game
             {
                 PeerFingerprints.Clear();
                 Current = State.Saving; Detail = "saving";
+                ShipFiles.Trace("host: F6 sync start");
                 var path = Path.Combine(Dir, "sync_out.ship");
                 if (!await ShipFiles.SaveCurrentAsync(path)) { Fail("save failed"); return; }
                 var bytes = File.ReadAllBytes(path);
                 SyncId = s.SendBlobToClients(BlobKindShip, bytes);
+                ShipFiles.Trace($"host: sending sync {SyncId}, {bytes.Length} bytes");
                 Current = State.Loading; Detail = $"sending {bytes.Length / 1024} KB, reloading own copy";
                 var ship = await ShipFiles.LoadIntoBayAsync(path);
                 if (ship == null) { Fail("reloading own ship failed"); return; }
@@ -66,6 +68,7 @@ namespace ShipbreakerCoop.Game
         public void OnBlob(byte kind, uint id, byte[] data)
         {
             if (kind != BlobKindShip) return;
+            ShipFiles.Trace($"client: blob {id} complete, {data.Length} bytes");
             try
             {
                 Directory.CreateDirectory(Dir);
@@ -123,6 +126,7 @@ namespace ShipbreakerCoop.Game
                 else { stableFor = 0; prev = now; history.Add(now); }
             }
             LocalFingerprint = ShipFiles.Fingerprint(Path.Combine(Dir, $"fp_{SyncId}_{who}.txt"));
+            ShipFiles.Trace($"{who}: settled {LocalFingerprint}");
             Plugin.Log.LogInfo($"ship sync {SyncId} fingerprint over time on {who}: {string.Join(" -> ", history)} -> {LocalFingerprint}");
             Current = State.Loaded; Detail = "";
             s.SendReport(ReportShipFingerprint, $"{SyncId}:{LocalFingerprint}");
@@ -148,7 +152,8 @@ namespace ShipbreakerCoop.Game
                 if (kv.Value != mine) return false;
                 n++;
             }
-            return n >= expectedPeers ? true : (bool?)null;
+            // At least one report is required: with every client gone the host must not claim IN SYNC (lab 2026-11-10).
+            return n >= Math.Max(1, expectedPeers) ? true : (bool?)null;
         }
 
         void Fail(string why)

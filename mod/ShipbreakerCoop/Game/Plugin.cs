@@ -212,6 +212,7 @@ namespace ShipbreakerCoop.Game
             bool ctrl = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl);
             if (!ctrl && Input.GetKeyDown(KeyCode.F6))
             {
+                ShipFiles.Trace($"F6 pressed ({mSession?.Role.ToString() ?? "no session"})");
                 if (mSession != null && mSession.Role == Role.Host) mShip.HostSync(mSession);
                 else mLastError = "F6 (sync ship) is for the host";
             }
