@@ -41,3 +41,15 @@ Add:
 > `GameObject.CreatePrimitive` gets the built-in pipeline's default material and renders nothing, while an
 > IMGUI name label still drew. A lab-only `ScreenCapture.CaptureScreenshot` taken 5 s after a puppet first
 > becomes visible caught it. Fix: an `HDRP/Lit` material (`Shader.Find`, or clone one from the scene).
+
+## playbook/how-coop-mods-work.md (or a page on syncing a world from a save): stale engine state after a swap
+
+> Loading the host's save into a running client is a fast way to give everyone the same world, and the game's own
+> loader may do most of the work. Check the result object by object: Hardspace: Shipbreaker's in-place ship swap
+> looked perfect on screen, but the client kept a different, run-dependent set of physics bodies. The cause was
+> cleanup the game defers: the old ship's per-body bookkeeping (`HierarchyProcessor.mHierarchyParents`) is only
+> pruned in an update that is skipped while other changes are queued, so ids the old and new world share reused
+> stale entries. Two tools found it in a few runs: an id fingerprint on both sides (count + hash of every persistent
+> id, plus a dump of the id list with each object's component types for diffing), and a flushed per-step trace
+> with one line per object the loader creates (id, what it looked up, matched or fresh). Waiting did not help;
+> calling the game's own cleanup once before loading did.

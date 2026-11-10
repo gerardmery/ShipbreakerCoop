@@ -13,14 +13,14 @@
     players_visible: yes
     story: no
     enemies: unknown
-    world_state: no
+    world_state: partial
     items: per-player
   players: "2-4"
   networking: steam-relay
   open_source: yes
   last_activity: 2026-11
   qa: automated
-  notes: "Milestone 1 only: players see each other (puppet suits). Ships, salvage and the shift are still per player. BepInEx 5 plugin, game's own Steamworks (no Spacewar). Steam path untested between two accounts. Write-up in games/hardspace-shipbreaker."
+  notes: "Players see each other (puppet suits, Steam tested between two PCs). Host can send its ship to everyone (identical start state incl. cuts, lab-tested); changes after that are not shared live yet. BepInEx 5 plugin, game's own Steamworks (no Spacewar). Write-up in games/hardspace-shipbreaker."
   sources:
     - https://github.com/OWNER/ShipbreakerCoop
   checked: 2026-11-10

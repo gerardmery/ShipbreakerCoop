@@ -20,8 +20,8 @@ the developers called co-op a months-long investigation).
   friends-only lobby on the game's AppID; no Spacewar needed), plain UDP for the two-copies-on-one-PC lab.
 - Milestones: 1 ghost buddy (players see each other), 2 shared salvage (same ship, grab/tether, deliveries),
   3 cutting and hazards, 4 shared shift/progression, 5 QA and packaging.
-- Status: milestone 1 works in the lab (two real game copies, automated smoke test + in-level playtest);
-  Steam path not tested between two accounts yet.
+- Status: milestone 1 works (lab + Steam between two PCs); milestone 2 step 1 (host sends its ship, everyone
+  starts from the identical ship incl. cuts) works in the lab. Live sync of changes is next.
 - Notes: will be posted as `games/hardspace-shipbreaker/` in a draft PR.
 
 **Your repo or branch (optional)**
