@@ -28,6 +28,12 @@ Ticked = done in a real session. Source: owner report unless a log is named. Mod
 ## 5. Three players
 - [ ] Third player joins; the two clients see each other (host relays)
 
+## 6. Ship sync over Steam (0.2.0+, deferred to the next big Steam session)
+- [ ] Both in the bay, host F6: friend's ship replaced, both boxes IN SYNC; note how long "receiving" takes
+- [ ] After the friend returns to the hab or quits: their own career ship in progress is unchanged
+      (back up their LocalLow save folder first, or use a fresh career profile)
+- [ ] Later builds: live sync items added here as they land
+
 ## Evidence to collect
 - [x] Host BepInEx\LogOutput.log (0.1.0 session): local/logs/2026-11-10-steam/host-0.1.0.log. 0 errors, 6 joins / 6 clean leaves, 3 Steam session requests (sessions are reused), puppet material came from a particle material (fixed in 0.1.1)
 - [x] Friend BepInEx\LogOutput.log (last launch only): closed-game invite confirmed; re-host admission gap confirmed from the client side; local/logs/2026-11-10-steam/SUMMARY.md
