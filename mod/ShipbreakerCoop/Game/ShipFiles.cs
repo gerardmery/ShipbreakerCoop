@@ -54,7 +54,8 @@ namespace ShipbreakerCoop.Game
             if (ms == null) { Plugin.Log.LogWarning("no ModuleService (not in the bay?)"); return null; }
             var t0 = DateTime.UtcNow;
             var old = ms.CurrentShipPreview;
-            Trace($"load {Path.GetFileName(path)}: despawn '{old?.ShipName}' start");
+            Trace($"load {Path.GetFileName(path)}: despawn '{old?.ShipName}' start; {RootDiagnostics.GraphState()}");
+            RootDiagnostics.Active = true;
             if (old != null) await old.DespawnModuleAsync(true, null, null);
             Trace("despawn returned; waiting for the old ship to be gone");
             await WaitForOldShipGone();
@@ -65,7 +66,7 @@ namespace ShipbreakerCoop.Game
             RigidTransform at = ms.CurrentSpawnPoint != null ? ms.CurrentSpawnPoint.ToRigidTransform() : RigidTransform.identity;
             Trace("spawn start");
             bool ok = await preview.SpawnModuleFromSaveDataAsync(at, null, null, false);
-            Trace($"spawn returned ok={ok}");
+            Trace($"spawn returned ok={ok}; {RootDiagnostics.GraphState()}");
             Plugin.Log.LogInfo($"ship loaded: ok={ok} '{preview.ShipName}' seed {preview.Seed} in " +
                                $"{(DateTime.UtcNow - t0).TotalMilliseconds:F0} ms; current is new: {ms.CurrentShipPreview == preview}; {Fingerprint()}");
             return ok ? preview : null;

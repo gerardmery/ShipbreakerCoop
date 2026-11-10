@@ -139,5 +139,18 @@ Observations (O), derived (D), guesses (G) and unknowns (U) are kept apart, as c
   created/assigned after SpawnModuleFromSaveDataAsync (HierarchyProcessor, HandleQueuedSplitSystem,
   StructureGraphSystem) and make the client keep the saved grouping.
 
+### O: how hierarchy roots are made (research 2026-11-10)
+- Root id = graph key from one session-wide counter (ECSGraphSystem.mGraphKeyCounter, GetNextAvailableGraphKey
+  ECSGraphSystem.cs:964; public settable NextAvailableGraphKey). That is why root ShipMemberIDs are small and
+  consecutive.
+- HierarchyProcessor.UpdateHierarchyParents creates a HierarchyParent per dirty active key it has no parent for
+  (HierarchyProcessor.cs:383-420). HierarchyParent.InstantiatePrefabInternal (HierarchyParent.cs:172-220) reattaches
+  to the saved root only if ModuleService.ShipSpawningFromSaveInProgress and ShipMemberID(graphKey) is in
+  CurrentShipPreview.ShipMemberIDToLoadedEntitiesMap; otherwise a fresh root without ShipMemberID.
+- On load, ShipSpawnSystem.LoadingFixupHierarchies (ShipSpawnSystem.cs:395-430) registers each saved root's graph
+  key as active+dirty (TryAddUnique) and raises the counter past it.
+- Candidate miss reasons: flag already off, key renumbered (not in map), or key already active (TryAddUnique false).
+  RootDiagnostics (dev only) logs, per root: key, flag, map hit, matched/fresh, into Coop/sync_trace.txt.
+
 ## Log
 - 2026-11-10: triage of player/Steam/save paths (above). Built M1: core + tests + plugin + lab.

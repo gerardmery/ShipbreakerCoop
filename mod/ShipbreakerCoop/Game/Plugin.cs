@@ -47,6 +47,7 @@ namespace ShipbreakerCoop.Game
             mOpt = CoopOptions.Load(Config, Environment.GetCommandLineArgs());
             mHarmony = new Harmony(Guid);
             mHarmony.CreateClassProcessor(typeof(ShipSync.SavePatch)).Patch(); // never save the host's ship as ours
+            if (mOpt.Dev) RootDiagnostics.Apply(mHarmony);
             if (!string.IsNullOrEmpty(mOpt.SaveDir)) SaveRedirect.Apply(mOpt.SaveDir, mHarmony);
             mLocal.Fake = mOpt.Fake;
             Application.runInBackground = true;

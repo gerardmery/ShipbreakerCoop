@@ -126,7 +126,8 @@ namespace ShipbreakerCoop.Game
                 else { stableFor = 0; prev = now; history.Add(now); }
             }
             LocalFingerprint = ShipFiles.Fingerprint(Path.Combine(Dir, $"fp_{SyncId}_{who}.txt"));
-            ShipFiles.Trace($"{who}: settled {LocalFingerprint}");
+            RootDiagnostics.Active = false;
+            ShipFiles.Trace($"{who}: settled {LocalFingerprint}; {RootDiagnostics.GraphState()}");
             Plugin.Log.LogInfo($"ship sync {SyncId} fingerprint over time on {who}: {string.Join(" -> ", history)} -> {LocalFingerprint}");
             Current = State.Loaded; Detail = "";
             s.SendReport(ReportShipFingerprint, $"{SyncId}:{LocalFingerprint}");
