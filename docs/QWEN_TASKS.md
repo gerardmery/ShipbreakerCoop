@@ -4,6 +4,9 @@ Written by Claude, 2026-11-10. Do them in order; each fits in 32k context if you
 at a time. Claude is building M2 "ship sync" in mod/ and tests/ meanwhile, so stay out of those.
 
 ## Rules for every task
+- NEVER rewrite a whole file. Edit or append the one section a task names. (On 2026-11-10 docs/NOTES.md was
+  replaced with 18 lines and had to be restored from git.) Never touch docs/NOTES.md at all; that is Claude's.
+- Put findings where the task says, not in new files at the repo root.
 - Only write the files a task names. Do NOT edit mod/, tests/, tools/lab/, or anything in the game folder.
 - Do not launch the game or the lab copies. Do not commit; Claude reviews and commits.
 - Every fact gets a source: `decomp/<path>.cs:<line>`. Put each finding in one of three lists:
@@ -13,7 +16,9 @@ at a time. Claude is building M2 "ship sync" in mod/ and tests/ meanwhile, so st
 - When a task is done, tick it here and add one line to docs/HANDOFF.md: task id, files changed.
 
 ## T1. How a shift starts (most useful: unblocks lab automation and "joiner follows host")
-- [ ] Trace from "player picks a ship / starts a shift" to the level load. Start: `grep -n "public .*Task" decomp/BBI.Unity.Game/BBI/Unity/Game/SceneLoader.cs`,
+- [x] DONE 2026-11-10, reviewed by Claude. Result in docs/SYNC_LIST.md section 7. Review notes: main finding
+  right; "set NextShipPreview" was wrong (private setter); no file:line sources were given, add them next time.
+- Trace from "player picks a ship / starts a shift" to the level load. Start: `grep -n "public .*Task" decomp/BBI.Unity.Game/BBI/Unity/Game/SceneLoader.cs`,
   then `JobBoardUtils.cs`. Look for whoever calls `TearDownAndLoadLevel...WithShipPreview...`.
 - Answer: (a) the call chain with method names and parameters; (b) is there one method we could call from a
   mod to start a shift in the bay with a given ShipPreview or ship file? its exact signature; (c) events
@@ -21,7 +26,7 @@ at a time. Claude is building M2 "ship sync" in mod/ and tests/ meanwhile, so st
 - Output: docs/SYNC_LIST.md, new section "## 7. Scene / level load flow".
 
 ## T2. When the game writes the "ship in progress" file
-- [ ] `PlayerProfileSaveLoadManager.cs:99-130` writes `profile.ShipInProgressFileName()`. Find every caller of
+- [ ] NOT DONE yet (HANDOFF.md's "T2" line was really more T1). `PlayerProfileSaveLoadManager.cs:99-130` writes `profile.ShipInProgressFileName()`. Find every caller of
   that save (grep the method name), i.e. when it happens: shift end, quit, autosave timer, leaving the bay?
 - Also: `PlayerProfile.cs:169` (where the file lives) and `SaveFile.cs:540` (what loading it does).
 - Why it matters: in co-op a client must not save the host's ship into the friend's career.

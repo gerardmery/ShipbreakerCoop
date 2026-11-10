@@ -49,11 +49,42 @@ CameraFollowPlayer, DroneFollowPlayer, ElementalPlayerDeathHandlerSystem (player
    Its only commands are RTS ones (AbilityCommand, CancelProductionCommand, BroadcastMapPingCommand...).
    Not used by Shipbreaker gameplay; useful as a reference, not a shortcut.
 4. **Steamworks.NET is already in the game**, so the mod can use it for Steam relay networking.
+5. **A mod can start a shift on a given ship** (section 7).
+6. **Ships save and load as files, with stable part IDs** (see docs/NOTES.md "Milestone 2 findings"):
+   `ShipPreview.WriteToFileAsync` / `CreateFromFileAsync` + `SpawnModuleFromSaveDataAsync`; `ShipMemberID` is a
+   seed-derived hash chain. Lab-tested: same file on two copies -> identical part fingerprints.
+
+## 7. Scene / level load flow
+(T1 by the local agent, checked and corrected by Claude 2026-11-10.)
+
+Observed:
+- Hab "Start Shift": `HabScreenController.StartShift()` (HabScreenController.cs:143). If
+  `ModuleService.NextShipPreview` is set and differs from the current ship, it picks the career level
+  (`Main.Instance.MainSettings.CareerLevelSettings.CareerLevelAssetRef`, tutorial level if the tutorial isn't
+  done) and calls `SceneLoader.Instance.TearDownAndLoadLevelRefWithShipPreviewAsync(levelRef, NextShipPreview,
+  false, false)`. Otherwise `SceneLoader.Instance.UnloadHabAndResumeShiftAsync()` (resume the current ship).
+- `SceneLoader.TearDownAndLoadLevelRefWithShipPreviewAsync(AssetReferenceT<LevelAsset>, ShipPreview,
+  bool bLoadWithHabStart = false, bool bDoQuitFade = true)` is **public** `async void` (SceneLoader.cs:206); it
+  refuses to run while another TearDownAndLoad is executing (log warning).
+- `ModuleService.NextShipPreview` has a private setter, set from an event handler (ModuleService.cs:76, 239).
+- A file-based variant exists but is private: `TearDownAndLoadLevelRefWithShipPreviewFileAsync_Internal`
+  (SceneLoader.cs ~609, uses `ShipPreview.CreateFromFileAsync`).
+- `SceneLoader.EndProcess` posts `GameStateChangedEvent.GetEvent(GameSession.GameState.Gameplay)` (SceneLoader.cs:420).
+
+Derived (for the mod):
+- Start a shift on a host's ship: `ShipPreview.CreateFromFileAsync(file)` then
+  `SceneLoader.Instance.TearDownAndLoadLevelRefWithShipPreviewAsync(careerLevelRef, preview, false, false)`.
+  Use: lab automation (no menu clicking) and "joiner goes to the host's ship".
+- Wait for "in the bay" on `GameStateChangedEvent` with `GameState.Gameplay`.
+
+Unknown:
+- Whether the preview's spawned-data block (cut state) is used on this path, or only the generated ship.
+- What `bLoadWithHabStart` / the frontend transition change; whether it works from the main menu (no profile loaded).
 
 ## Next
 - [ ] Inspect Carbon.Network.dll
-- [ ] Find the player controller / movement (search: Movement, Locomotion, Thruster, Character)
-- [ ] Find processor, barge, salvage scoring, shift timer, save system
+- [x] Find the player controller / movement: Player + PlayerMotion (docs/NOTES.md)
+- [ ] Find processor, barge, salvage scoring, shift timer, save system (QWEN_TASKS T2-T4)
 - [ ] Read RequestHierarchySplitEvent: who raises it, what data it carries
 - [ ] Check what AntiCheatToolKit protects
 - [ ] Export BBI.Unity.Game + Carbon.* to decomp\ for full-text search
