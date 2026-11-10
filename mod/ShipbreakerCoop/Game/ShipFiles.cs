@@ -82,6 +82,7 @@ namespace ShipbreakerCoop.Game
             var em = World.DefaultGameObjectInjectionWorld.EntityManager;
             var t0 = DateTime.UtcNow;
             int manifests = 0, pending = 0, frames = 0;
+            var parents = new System.Collections.Generic.List<int>();
             using (var qm = em.CreateEntityQuery(ComponentType.ReadOnly<ShipManifest>()))
             using (var qp = em.CreateEntityQuery(ComponentType.ReadOnly<PendingDestruction>()))
             {
@@ -89,12 +90,33 @@ namespace ShipbreakerCoop.Game
                 {
                     manifests = qm.CalculateEntityCount();
                     pending = qp.CalculateEntityCount();
-                    if (manifests == 0 && pending == 0) break;
+                    parents = OldHierarchyParents();
+                    if (manifests == 0 && pending == 0 && parents.Count == 0) break;
                     await Task.Yield(); frames++;
                 }
             }
-            Plugin.Log.LogInfo($"old ship gone after {(DateTime.UtcNow - t0).TotalMilliseconds:F0} ms / {frames} waits " +
-                               $"(manifests left {manifests}, pending destruction {pending})");
+            string left = parents.Count == 0 ? "none" : string.Join(",", parents);
+            var msg = $"old ship gone after {(DateTime.UtcNow - t0).TotalMilliseconds:F0} ms / {frames} waits " +
+                      $"(manifests left {manifests}, pending destruction {pending}, hierarchy parents left: {left})";
+            Plugin.Log.LogInfo(msg);
+            Trace(msg);
+        }
+
+        /// <summary>
+        /// Graph keys HierarchyProcessor still holds a HierarchyParent (physics body) for. Leftovers from the old ship
+        /// are only removed by CleanUpOldParents once the structure graph has no queued changes
+        /// (HierarchyProcessor.cs:697). Loading before that reused a leftover body for every key the old and new
+        /// ship share, so the saved bodies were never created (lab run 5: client skipped keys 84-98).
+        /// </summary>
+        static System.Collections.Generic.List<int> OldHierarchyParents()
+        {
+            var keys = new System.Collections.Generic.List<int>();
+            var hp = HierarchyProcessor.Instance;
+            if (hp == null) return keys;
+            var dict = HarmonyLib.Traverse.Create(hp).Field("mHierarchyParents").GetValue<System.Collections.IDictionary>();
+            if (dict != null) foreach (var k in dict.Keys) keys.Add((int)k);
+            keys.Sort();
+            return keys;
         }
 
         /// <summary>Parts with a ShipMemberID (a seed-derived hash chain, decomp ShipMemberID.cs), skipping

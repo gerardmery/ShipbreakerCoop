@@ -152,5 +152,12 @@ Observations (O), derived (D), guesses (G) and unknowns (U) are kept apart, as c
 - Candidate miss reasons: flag already off, key renumbered (not in map), or key already active (TryAddUnique false).
   RootDiagnostics (dev only) logs, per root: key, flag, map hit, matched/fresh, into Coop/sync_trace.txt.
 
+- Run 5 (RootDiagnostics): host created 18 roots (keys 42, 61..98), all matched to saved entities. Client created
+  only 3 (42, 61, 83), all matched; keys 84..98 were never created. Client's old ship used keys 59..103.
+  D: HierarchyProcessor still held the old ship's HierarchyParents for those keys: UpdateHierarchyParents only
+  creates a parent for a key it has none for, and CleanUpOldParents skips while the graph has queued changes
+  (HierarchyProcessor.cs:697), which it does right after a despawn. Fix: after despawn also wait until
+  HierarchyProcessor.mHierarchyParents is empty (ShipFiles.WaitForOldShipGone).
+
 ## Log
 - 2026-11-10: triage of player/Steam/save paths (above). Built M1: core + tests + plugin + lab.
