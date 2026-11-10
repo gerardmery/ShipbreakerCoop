@@ -62,27 +62,27 @@ namespace ShipbreakerCoop.Game
         static Material sLitTemplate;
         static readonly HashSet<Material> sOwn = new HashSet<Material>();
 
-        /// <summary>HDRP/Lit: clone a material the game already set up (keywords and passes valid),
-        /// strip its textures and tint it. Falls back to a fresh HDRP/Lit material.</summary>
+        /// <summary>HDRP/Lit: a fresh material from the shader (rendered fine in the lab). Only if the shader
+        /// can't be found, clone a scene material; that picked a particle material in a real session.</summary>
         static Material MakeLit(Color color)
         {
-            if (sLitTemplate == null)
-            {
-                foreach (var rend in Object.FindObjectsOfType<MeshRenderer>())
-                {
-                    var sm = rend.sharedMaterial;
-                    if (sm != null && !sOwn.Contains(sm) && sm.shader != null && sm.shader.name == "HDRP/Lit")
-                    { sLitTemplate = sm; break; }
-                }
-                if (sLitTemplate != null) Plugin.Log.LogInfo($"puppet material cloned from '{sLitTemplate.name}'");
-            }
-            Material m;
-            if (sLitTemplate != null) m = new Material(sLitTemplate);
+            Material m = null;
+            var sh = Shader.Find("HDRP/Lit");
+            if (sh != null) m = new Material(sh);
             else
             {
-                var sh = Shader.Find("HDRP/Lit");
-                if (sh == null) { Plugin.Log.LogWarning("HDRP/Lit shader not found"); return null; }
-                m = new Material(sh);
+                if (sLitTemplate == null)
+                {
+                    foreach (var rend in Object.FindObjectsOfType<MeshRenderer>())
+                    {
+                        var sm = rend.sharedMaterial;
+                        if (sm != null && !sOwn.Contains(sm) && sm.shader != null && sm.shader.name == "HDRP/Lit")
+                        { sLitTemplate = sm; break; }
+                    }
+                    Plugin.Log.LogWarning(sLitTemplate != null ? $"HDRP/Lit not found; cloning '{sLitTemplate.name}'" : "no HDRP/Lit material at all");
+                }
+                if (sLitTemplate == null) return null;
+                m = new Material(sLitTemplate);
             }
             foreach (var tex in new[] { "_BaseColorMap", "_NormalMap", "_MaskMap", "_EmissiveColorMap", "_DetailMap", "_CoatMaskMap" })
                 if (m.HasProperty(tex)) m.SetTexture(tex, null);

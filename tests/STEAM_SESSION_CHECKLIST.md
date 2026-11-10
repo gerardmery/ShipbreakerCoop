@@ -9,7 +9,9 @@ Ticked = done in a real session. Source: owner report unless a log is named. Mod
 
 ## 2. Leaving and dropping out
 - [x] Friend quits normally: suit vanishes on host, 2026-11-10
-- [x] Friend's game killed in Task Manager: suit gone "after a few seconds" (timeout path), friend rejoined via Steam, back at the menu showing "elsewhere", 2026-11-10
+- [x] Friend closed the game with Task Manager "End task" (Processes tab): suit gone after a few seconds, rejoined via Steam, 2026-11-10.
+      Host log says "left", not "timed out": End task closes politely, so the game still sent its goodbye.
+- [ ] Real crash: Task Manager > Details > Shipbreaker.exe > End task. Host log must say "timed out" (~10 s)
 - [~] Host leaves: suit disappeared, but the friend stayed in a dead lobby retrying forever (0.1.0 bug; also: re-hosting let him straight back in without an invite). Fixed in 0.1.1, retest
 
 ## 3. Network blips
@@ -27,5 +29,5 @@ Ticked = done in a real session. Source: owner report unless a log is named. Mod
 - [ ] Third player joins; the two clients see each other (host relays)
 
 ## Evidence to collect
-- [ ] Host BepInEx\LogOutput.log
+- [x] Host BepInEx\LogOutput.log (0.1.0 session): local/logs/2026-11-10-steam/host-0.1.0.log. 0 errors, 6 joins / 6 clean leaves, 3 Steam session requests (sessions are reused), puppet material came from a particle material (fixed in 0.1.1)
 - [ ] Friend BepInEx\LogOutput.log
