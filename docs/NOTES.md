@@ -131,5 +131,13 @@ Observations (O), derived (D), guesses (G) and unknowns (U) are kept apart, as c
   looping), BepInEx log ended at "receiving blob" (buffered: last lines may be lost). Not reproduced in run 3.
   U: cause. The flushed step trace (Coop/sync_trace.txt) is there to catch it next time.
 
+- Run 4 (component types per id): client 841 vs host 872, 31 missing, 0 extra. 14 missing are HierarchyRoot
+  entities (Rigidbody, RoomOccupancy, no ShipMemberComponent; the counter-like ids): the physics bodies that group
+  parts. The rest are structure parts, salvage parts and 3 SpaceTruckPartExtractionController interactables.
+  D: the client ends with a different grouping of parts into physics bodies, varying per run (recomputed after
+  load, timing-dependent?). This blocks M2 (the bodies are what gets synced). Next: read how HierarchyRoots are
+  created/assigned after SpawnModuleFromSaveDataAsync (HierarchyProcessor, HandleQueuedSplitSystem,
+  StructureGraphSystem) and make the client keep the saved grouping.
+
 ## Log
 - 2026-11-10: triage of player/Steam/save paths (above). Built M1: core + tests + plugin + lab.
