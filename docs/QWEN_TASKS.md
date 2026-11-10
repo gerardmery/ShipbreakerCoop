@@ -26,7 +26,7 @@ at a time. Claude is building M2 "ship sync" in mod/ and tests/ meanwhile, so st
 - Output: docs/SYNC_LIST.md, new section "## 7. Scene / level load flow".
 
 ## T2. When the game writes the "ship in progress" file
-- [ ] NOT DONE yet (HANDOFF.md's "T2" line was really more T1). `PlayerProfileSaveLoadManager.cs:99-130` writes `profile.ShipInProgressFileName()`. Find every caller of
+- [x] Done by Claude 2026-11-10 (SYNC_LIST.md section 6). Two local-agent runs failed: one rewrote SYNC_LIST.md in the main tree, one answered a different question. `PlayerProfileSaveLoadManager.cs:99-130` writes `profile.ShipInProgressFileName()`. Find every caller of
   that save (grep the method name), i.e. when it happens: shift end, quit, autosave timer, leaving the bay?
 - Also: `PlayerProfile.cs:169` (where the file lives) and `SaveFile.cs:540` (what loading it does).
 - Why it matters: in co-op a client must not save the host's ship into the friend's career.

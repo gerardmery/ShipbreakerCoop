@@ -54,6 +54,26 @@ CameraFollowPlayer, DroneFollowPlayer, ElementalPlayerDeathHandlerSystem (player
    `ShipPreview.WriteToFileAsync` / `CreateFromFileAsync` + `SpawnModuleFromSaveDataAsync`; `ShipMemberID` is a
    seed-derived hash chain. Lab-tested: same file on two copies -> identical part fingerprints.
 
+## 6. Shift system
+### Ship in progress save (T2, Claude 2026-11-10)
+Observed:
+- Only writer: `SceneLoader.PreTearDown` (SceneLoader.cs:285-307). In a **Career** session it calls
+  `PlayerProfileService.TrySavePlayerProfile` and `TrySavePlayerProfileShip(ModuleService.Instance.CurrentShipPreview)`
+  when tearing down (a) from the hab to the front end (quit to menu), or (b) to the hab without the front end
+  (back to the hab: end of shift / leaving the bay). Skipped while front-end actions are blocked (cutscenes).
+- `PlayerProfileSaveLoadManager.TrySavePlayerProfileShip` (PlayerProfileSaveLoadManager.cs:115-131) =
+  `ShipPreview.WriteToFileAsync(profile.ShipInProgressFileName())` then `SaveFile.CloudSavePlayerProfileShip`
+  (cloud copy too).
+- File: `SaveFile.MakePlayerProfileShipFilePath` = the profile save path with extension `.ship` (SaveFile.cs:106).
+- Deleted on new profile (PlayerProfileSaveLoadManager.cs:49) and profile delete (:86).
+
+Derived (co-op risk):
+- A client who loaded the host's ship and then goes back to the hab or quits saves **the host's ship as their
+  own ship in progress**, locally and to the cloud. Fix before real play with ship sync: Harmony prefix on
+  `PlayerProfileService.TrySavePlayerProfileShip` that skips the save on a client while a synced ship is
+  loaded (or back up the client's own `.ship` before the swap and restore it after).
+- The profile save on the same path (credits/XP from the host's ship) is the same question; milestone 4.
+
 ## 7. Scene / level load flow
 (T1 by the local agent, checked and corrected by Claude 2026-11-10.)
 
