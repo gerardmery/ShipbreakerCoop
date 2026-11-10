@@ -170,5 +170,10 @@ Observations (O), derived (D), guesses (G) and unknowns (U) are kept apart, as c
   Still left after despawn on both: 2 parents with still-active keys (host 98,99; client 106,107). Harmless
   here; would matter if the host's saved ship uses one of those keys. Watch in later runs.
 
+- Run 8 (repeat after a cut): owner cut the antenna off on the host, F6: the antenna is gone on the client too
+  (owner check). IN SYNC again: 859:229a076868c020f2 on both (862 before the cut). Ship sync = initial state
+  incl. cuts. Not yet: live changes between syncs (cuts, moved pieces) - next M2 step.
+
 ## Log
+- 2026-11-10 (later): M2 step 1 (ship sync) working in the lab after 8 runs; see "Milestone 2 findings".
 - 2026-11-10: triage of player/Steam/save paths (above). Built M1: core + tests + plugin + lab.
