@@ -109,5 +109,19 @@ Observations (O), derived (D), guesses (G) and unknowns (U) are kept apart, as c
   D: sync = host saves, then BOTH load the file; never keep the host's live ship and ship a copy.
 - U: why the counts differ (saved entities vs entities spawned on load); file size of a fresh, uncut ship.
 
+### O: first real ship sync in the lab (0.2.0 + diagnostics, owner playtest)
+- Transfer works: 682-716 KB file, 0 bad packets, both copies load the same ship (name, seed) in ~1.3 s.
+- Fingerprint right after a load is transient (old + new + template entities, ~1470); it settles within ~1 s
+  (ShipSpawnCleanUpSystem marks the manifest's template children PendingDestruction). Settled host fingerprint ==
+  live fingerprint before saving (859 parts, identical lists over two syncs): save -> reload is exact on the host.
+- Client loading the host's file over a DIFFERENT ship: settles at 153 of 859 parts (strict subset: 706 missing).
+  Same client loading the same file again over that (now same) ship: 855 of 859. Missing 4: 0x4e, 0x4f
+  (counter-like ids, maybe runtime split pieces) + 2 hash ids. No errors or warnings in either Player.log.
+- D: swapping out a different ship in the bay breaks the new spawn on the client. U: the mechanism (candidate:
+  ShipSpawnCleanUpSystem takes ShipManifest query [0], or the old ship's despawn still running).
+- Fix candidates: (a) client loads via a level reload (SceneLoader.TearDownAndLoadLevelRefWithShipPreviewAsync,
+  SYNC_LIST section 7), the game's own path for a new ship; (b) despawn, wait until no old ShipManifest / pending
+  destruction remains, then spawn; (c) load twice. Not decided.
+
 ## Log
 - 2026-11-10: triage of player/Steam/save paths (above). Built M1: core + tests + plugin + lab.

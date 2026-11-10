@@ -217,6 +217,12 @@ namespace ShipbreakerCoop.Game
             }
             if (mOpt.Dev && ctrl && !mShipBusy)
             {
+                if (Input.GetKeyDown(KeyCode.F4))
+                {
+                    var dump = Path.Combine(BBI.Unity.Game.PlatformSettings.SaveDataPath, "Coop", $"fp_now_{DateTime.Now:HHmmss}.txt");
+                    mLastError = "parts " + ShipFiles.Fingerprint(dump);
+                    Log.LogInfo($"fingerprint dump {dump}: {mLastError}");
+                }
                 if (Input.GetKeyDown(KeyCode.F5)) RunShipOp("save", () => ShipFiles.SaveCurrentAsync(ProbeShipPath));
                 if (Input.GetKeyDown(KeyCode.F6)) RunShipOp("load", async () => await ShipFiles.LoadIntoBayAsync(ProbeShipPath) != null);
             }
@@ -318,7 +324,8 @@ namespace ShipbreakerCoop.Game
                 sb.Append($"\"badPackets\":{mSession.BadPackets},\"fps\":{F(1f / Mathf.Max(Time.unscaledDeltaTime, 1e-4f))},");
                 sb.Append($"\"local\":{{\"scene\":\"{Esc(local.Scene)}\",\"hasPlayer\":{(local.HasPlayer ? "true" : "false")},\"pos\":{V(local.Pos.ToUnity())}}},");
                 var inSync = mShip.InSync(mSession.Role == Role.Host ? mSession.PlayerCount - 1 : 1);
-                sb.Append($"\"ship\":{{\"state\":\"{mShip.Current}\",\"syncId\":{mShip.SyncId},\"local\":\"{Esc(mShip.LocalFingerprint)}\",");
+                string live = ShipFiles.InBay ? ShipFiles.Fingerprint() : "";
+                sb.Append($"\"ship\":{{\"state\":\"{mShip.Current}\",\"syncId\":{mShip.SyncId},\"local\":\"{Esc(mShip.LocalFingerprint)}\",\"live\":\"{live}\",");
                 sb.Append($"\"inSync\":{(inSync == true ? "true" : inSync == false ? "false" : "null")},\"line\":\"{Esc(ShipLine(mSession))}\",\"peers\":{{");
                 bool firstPeer = true;
                 foreach (var kv in mShip.PeerFingerprints)

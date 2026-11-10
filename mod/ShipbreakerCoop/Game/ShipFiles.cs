@@ -54,7 +54,11 @@ namespace ShipbreakerCoop.Game
         /// <summary>Parts with a ShipMemberID (a seed-derived hash chain, decomp ShipMemberID.cs), skipping
         /// entities queued for deletion (as the game's own save does): count + an order-independent hash.
         /// Same file loaded on two machines => same fingerprint (lab, 2026-11-10).</summary>
-        public static string Fingerprint()
+        public static string Fingerprint() => Fingerprint(null);
+
+        /// <summary>Same as Fingerprint(), and writes every ShipMemberID (sorted, hex) to dumpPath when given,
+        /// so two machines' part lists can be diffed.</summary>
+        public static string Fingerprint(string dumpPath)
         {
             var world = World.DefaultGameObjectInjectionWorld;
             if (world == null) return "no-world";
@@ -68,10 +72,20 @@ namespace ShipbreakerCoop.Game
             using (var ids = q.ToComponentDataArray<ShipMemberID>(Allocator.TempJob))
             {
                 ulong sum = 0, xor = 0;
+                var raw = dumpPath != null ? new ulong[ids.Length] : null;
                 for (int i = 0; i < ids.Length; i++)
                 {
                     ulong v = Mix(ids[i].Value.Value);
                     sum += v; xor ^= v;
+                    if (raw != null) raw[i] = ids[i].Value.Value;
+                }
+                if (raw != null)
+                {
+                    Array.Sort(raw);
+                    var lines = new string[raw.Length];
+                    for (int i = 0; i < raw.Length; i++) lines[i] = raw[i].ToString("x16");
+                    Directory.CreateDirectory(Path.GetDirectoryName(dumpPath));
+                    File.WriteAllLines(dumpPath, lines);
                 }
                 return $"{ids.Length}:{sum ^ (xor * 31):x16}";
             }

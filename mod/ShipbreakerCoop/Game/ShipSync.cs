@@ -55,7 +55,7 @@ namespace ShipbreakerCoop.Game
                 Current = State.Loading; Detail = $"sending {bytes.Length / 1024} KB, reloading own copy";
                 var ship = await ShipFiles.LoadIntoBayAsync(path);
                 if (ship == null) { Fail("reloading own ship failed"); return; }
-                Finish(s, "host");
+                await Finish(s, "host");
             }
             catch (Exception e) { Fail(e.GetType().Name); Plugin.Log.LogError(e); }
             finally { mBusy = false; }
@@ -97,7 +97,7 @@ namespace ShipbreakerCoop.Game
                 var ship = await ShipFiles.LoadIntoBayAsync(path);
                 if (ship == null) { Fail("loading the host ship failed"); return; }
                 sForeignShip = ship;
-                Finish(s, "client");
+                await Finish(s, "client");
             }
             catch (Exception e) { Fail(e.GetType().Name); Plugin.Log.LogError(e); }
             finally { mBusy = false; }
@@ -105,9 +105,25 @@ namespace ShipbreakerCoop.Game
 
         // ------------------------------------------------------------------ both
 
-        void Finish(CoopSession s, string who)
+        /// <summary>Waits until the part fingerprint stops changing (the old ship's deletion and the new ship's
+        /// children finish over the next frames: lab 2026-11-10, host 1522 vs client 1541 parts when measured at
+        /// once), then reports it and dumps the part list to Coop/fp_&lt;sync&gt;_&lt;who&gt;.txt for diffing.</summary>
+        async Task Finish(CoopSession s, string who)
         {
-            LocalFingerprint = ShipFiles.Fingerprint();
+            Current = State.Loading; Detail = "settling";
+            string prev = ShipFiles.Fingerprint();
+            var t0 = DateTime.UtcNow;
+            int stableFor = 0;
+            var history = new List<string> { prev };
+            while ((DateTime.UtcNow - t0).TotalSeconds < 15)
+            {
+                await Task.Delay(500);
+                string now = ShipFiles.Fingerprint();
+                if (now == prev) { if (++stableFor >= 4 && (DateTime.UtcNow - t0).TotalSeconds >= 3) break; }
+                else { stableFor = 0; prev = now; history.Add(now); }
+            }
+            LocalFingerprint = ShipFiles.Fingerprint(Path.Combine(Dir, $"fp_{SyncId}_{who}.txt"));
+            Plugin.Log.LogInfo($"ship sync {SyncId} fingerprint over time on {who}: {string.Join(" -> ", history)} -> {LocalFingerprint}");
             Current = State.Loaded; Detail = "";
             s.SendReport(ReportShipFingerprint, $"{SyncId}:{LocalFingerprint}");
             Plugin.Log.LogInfo($"ship sync {SyncId} loaded on {who}: {LocalFingerprint}");

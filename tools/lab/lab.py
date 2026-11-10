@@ -352,16 +352,20 @@ def shipsync(args):
     the host). Pass: both IN SYNC for the same sync id, identical fingerprints, nothing went wrong."""
     end = time.time() + args.timeout
     last = None
+    h0 = read_status("host")
+    old_id = (h0 or {}).get("ship", {}).get("syncId", 0)  # only a NEW sync counts
     while time.time() < end:
         h, c = read_status("host"), read_status("client")
         if h and c and "ship" in h and "ship" in c:
             hs, cs = h["ship"], c["ship"]
+            if hs.get("syncId") == old_id:
+                time.sleep(1)
+                continue
             line = f"host: {hs['line']} | client: {cs['line']}"
             if line != last:
                 log(line)
                 last = line
-            if "Failed" in (hs["state"], cs["state"]):
-                break
+            # A failed attempt (e.g. F6 outside the bay) can be retried by the owner: keep watching.
             if hs["inSync"] is not None and cs["inSync"] is not None:
                 break
         time.sleep(1)
