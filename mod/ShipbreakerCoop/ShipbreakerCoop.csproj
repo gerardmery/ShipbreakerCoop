@@ -35,6 +35,8 @@
     <GameRef Include="$(ManagedDir)\Carbon.Core.dll" />
     <GameRef Include="$(ManagedDir)\Carbon.Core.Unity.dll" />
     <GameRef Include="$(ManagedDir)\Unity.Entities.dll" />
+    <GameRef Include="$(ManagedDir)\Unity.Collections.dll" />
+    <GameRef Include="$(ManagedDir)\Unity.Mathematics.dll" />
     <GameRef Include="$(ManagedDir)\Steamworks.NET.Plugins.dll" />
     <GameRef Include="$(ManagedDir)\netstandard.dll" />
     <Reference Include="@(GameRef)" Private="false" />

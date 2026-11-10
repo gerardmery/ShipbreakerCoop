@@ -14,6 +14,7 @@ namespace ShipbreakerCoop.Game
     ///   -coop-savedir &lt;dir&gt;        lab only: keep this copy's saves and settings in &lt;dir&gt;
     ///   -coop-status &lt;file&gt;        lab only: write a JSON status file twice a second
     ///   -coop-fake circle          lab only: send a fake player circling in front of the camera
+    ///   -coop-dev                  dev keys: Ctrl+F5 save current ship to a file, Ctrl+F6 load it back
     /// </summary>
     public sealed class CoopOptions
     {
@@ -28,6 +29,7 @@ namespace ShipbreakerCoop.Game
         public string SaveDir;
         public string StatusFile;
         public string Fake;
+        public bool Dev;
 
         public static CoopOptions Load(ConfigFile cfg, string[] args)
         {
@@ -55,6 +57,7 @@ namespace ShipbreakerCoop.Game
                     case "-coop-savedir": o.SaveDir = Next(); break;
                     case "-coop-status": o.StatusFile = Next(); break;
                     case "-coop-fake": o.Fake = Next(); break;
+                    case "-coop-dev": o.Dev = true; break;
                 }
             }
             if (o.Transport != "udp" && o.Transport != "steam") o.Transport = "steam";

@@ -170,7 +170,7 @@ def launch_args(name, fake):
     a = ["-screen-fullscreen", "0", "-screen-width", "1600", "-screen-height", "900",
          "-logFile", os.path.join(d, "Player.log"),
          "-coop-transport", "udp", "-coop-savedir", os.path.join(d, "CoopSave"),
-         "-coop-status", os.path.join(d, "coop_status.json"), "-coop-name", name.capitalize()]
+         "-coop-status", os.path.join(d, "coop_status.json"), "-coop-name", name.capitalize(), "-coop-dev"]
     if name == "host":
         a += ["-coop-host", "-coop-port", str(UDP_PORT)]
     else:

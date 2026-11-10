@@ -202,6 +202,26 @@ namespace ShipbreakerCoop.Game
                 else mLastError = "Steam: join through a friend's invite or Join Game in the friends list";
             }
             if (Input.GetKeyDown(KeyCode.F10)) { Stop(); mPending = null; Log.LogInfo("left the session"); }
+
+            bool ctrl = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl);
+            if (mOpt.Dev && ctrl && !mShipBusy)
+            {
+                if (Input.GetKeyDown(KeyCode.F5)) RunShipOp("save", () => ShipFiles.SaveCurrentAsync(ProbeShipPath));
+                if (Input.GetKeyDown(KeyCode.F6)) RunShipOp("load", () => ShipFiles.LoadIntoBayAsync(ProbeShipPath));
+            }
+        }
+
+        bool mShipBusy;
+        static string ProbeShipPath => Path.Combine(BBI.Unity.Game.PlatformSettings.SaveDataPath, "Coop", "probe.ship");
+
+        /// <summary>Runs a ship file operation on the main thread (the game's async code needs Unity's context).</summary>
+        async void RunShipOp(string what, Func<System.Threading.Tasks.Task<bool>> op)
+        {
+            mShipBusy = true;
+            mLastError = $"ship {what}...";
+            try { mLastError = await op() ? $"ship {what}: done" : $"ship {what}: FAILED (see log)"; }
+            catch (Exception e) { mLastError = $"ship {what}: {e.GetType().Name}"; Log.LogError(e); }
+            finally { mShipBusy = false; }
         }
 
         void OnApplicationQuit() => Stop();
