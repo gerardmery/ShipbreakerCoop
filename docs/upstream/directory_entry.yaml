@@ -1,11 +1,10 @@
 # Append to data/directory.yaml, then: python tools/build_directory.py
 # Validated with the coop-anything validate_entry tool (2026-11-10).
-# BLOCKER: url/sources need the public mod repo. Replace OWNER once it exists.
 - game: "Hardspace: Shipbreaker"
   year: 2022
   engine: Unity
   project: ShipbreakerCoop
-  url: https://github.com/OWNER/ShipbreakerCoop
+  url: https://github.com/gerardmery/ShipbreakerCoop
   other_urls: []
   kind: mod
   status: prototype
@@ -22,6 +21,6 @@
   qa: automated
   notes: "Players see each other (puppet suits, Steam tested between two PCs). Host can send its ship to everyone (identical start state incl. cuts, lab-tested); changes after that are not shared live yet. BepInEx 5 plugin, game's own Steamworks (no Spacewar). Write-up in games/hardspace-shipbreaker."
   sources:
-    - https://github.com/OWNER/ShipbreakerCoop
+    - https://github.com/gerardmery/ShipbreakerCoop
   checked: 2026-11-10
   made_with_coop_anything: true

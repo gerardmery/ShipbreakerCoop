@@ -26,4 +26,4 @@ the developers called co-op a months-long investigation).
 
 **Your repo or branch (optional)**
 
-(to fill in once the mod repo is public)
+https://github.com/gerardmery/ShipbreakerCoop

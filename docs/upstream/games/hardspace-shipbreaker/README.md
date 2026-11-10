@@ -4,7 +4,7 @@
 |---|---|
 | Engine | Unity 2020.3.35f1, Mono, x64, HDRP; DOTS/ECS + Burst for ship parts |
 | Versions tested | Steam, build 22302871, Shipbreaker.exe SHA-256 `7fc94c77eb1ed54b956f8572663f7893bb7fc407d2c1d3450f87343f93a3670f` |
-| Projects | ShipbreakerCoop (BepInEx 5 plugin), repo: TODO public link |
+| Projects | ShipbreakerCoop (BepInEx 5 plugin), repo: [github.com/gerardmery/ShipbreakerCoop](https://github.com/gerardmery/ShipbreakerCoop) |
 | QA level | automated (players visible; ship sync in the lab) |
 | Last updated | 2026-11-10 |
 

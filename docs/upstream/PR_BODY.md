@@ -14,7 +14,7 @@ Title: Hardspace: Shipbreaker: directory entry, write-up, Steam and lab playbook
 - How it was tested: engine-free core suite (42 checks) with 12 mutation twins; two real game clients on one
   PC driven by a lab script (14 checks incl. owner-folder hashes, 3 passing runs) plus an in-game screenshot;
   owner playtest of two copies in the shipbreaking bay. Steam between two accounts not tested yet.
-- Sources: decompiled game code (local, not included), mod repo: OWNER/ShipbreakerCoop
+- Sources: decompiled game code (local, not included), mod repo: gerardmery/ShipbreakerCoop
 
 ## Checklist
 
