@@ -80,7 +80,11 @@ Observations (O), derived (D), guesses (G) and unknowns (U) are kept apart, as c
   Logs: ~14k states each way, 5-6 ms rtt, 0 bad packets, 0 exceptions.
   O: Player lives in scene 'master_game_container' in both copies, independent of the ship.
   Fixed after: status fps used smoothDeltaTime, reads 10000 while paused (timeScale 0); now unscaled.
-- NOT tested: Steam transport/lobby/invites (needs a second Steam account on another PC; one account can't test it).
+- Steam test (2026-11-10, owner + a friend on separate PCs, two Steam accounts, owner report; logs not yet read):
+  host F8 + Shift+F8 invite, friend joined; movement "as smooth" as the lab; friend leaving removed the puppet.
+  Still to test over Steam: Join Game from friends list, invite with the game closed (+connect_lobby),
+  hard kill (10 s timeout), network drop and auto-rejoin, client death, alt-tab, hab<->bay, long session,
+  3 players (relay).
 
 ## Log
 - 2026-11-10: triage of player/Steam/save paths (above). Built M1: core + tests + plugin + lab.
