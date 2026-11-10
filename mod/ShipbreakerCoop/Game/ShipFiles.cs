@@ -19,6 +19,9 @@ namespace ShipbreakerCoop.Game
     {
         public static ShipPreview Current => ModuleService.Instance?.CurrentShipPreview;
 
+        /// <summary>In the bay with a spawn point registered (where a ship can be loaded).</summary>
+        public static bool InBay => ModuleService.Instance != null && ModuleService.Instance.CurrentSpawnPoint != null;
+
         public static async Task<bool> SaveCurrentAsync(string path)
         {
             var ship = Current;
@@ -31,30 +34,37 @@ namespace ShipbreakerCoop.Game
             return ok;
         }
 
-        public static async Task<bool> LoadIntoBayAsync(string path)
+        /// <summary>Despawns the current ship and spawns the one in the file. Returns the new ship, or null.</summary>
+        public static async Task<ShipPreview> LoadIntoBayAsync(string path)
         {
             var ms = ModuleService.Instance;
-            if (ms == null) { Plugin.Log.LogWarning("no ModuleService (not in the bay?)"); return false; }
+            if (ms == null) { Plugin.Log.LogWarning("no ModuleService (not in the bay?)"); return null; }
             var t0 = DateTime.UtcNow;
             var old = ms.CurrentShipPreview;
             if (old != null) await old.DespawnModuleAsync(true, null, null);
             var preview = await ShipPreview.CreateFromFileAsync(path, false);
-            if (preview == null) { Plugin.Log.LogError("ship file did not load: " + path); return false; }
+            if (preview == null) { Plugin.Log.LogError("ship file did not load: " + path); return null; }
             RigidTransform at = ms.CurrentSpawnPoint != null ? ms.CurrentSpawnPoint.ToRigidTransform() : RigidTransform.identity;
             bool ok = await preview.SpawnModuleFromSaveDataAsync(at, null, null, false);
             Plugin.Log.LogInfo($"ship loaded: ok={ok} '{preview.ShipName}' seed {preview.Seed} in " +
                                $"{(DateTime.UtcNow - t0).TotalMilliseconds:F0} ms; current is new: {ms.CurrentShipPreview == preview}; {Fingerprint()}");
-            return ok;
+            return ok ? preview : null;
         }
 
-        /// <summary>Parts with a ShipMemberID (a seed-derived hash chain, decomp ShipMemberID.cs):
-        /// count + an order-independent hash. Same ship on two machines => same fingerprint.</summary>
+        /// <summary>Parts with a ShipMemberID (a seed-derived hash chain, decomp ShipMemberID.cs), skipping
+        /// entities queued for deletion (as the game's own save does): count + an order-independent hash.
+        /// Same file loaded on two machines => same fingerprint (lab, 2026-11-10).</summary>
         public static string Fingerprint()
         {
             var world = World.DefaultGameObjectInjectionWorld;
-            if (world == null) return "fingerprint: no world";
+            if (world == null) return "no-world";
             var em = world.EntityManager;
-            using (var q = em.CreateEntityQuery(ComponentType.ReadOnly<ShipMemberID>()))
+            var desc = new EntityQueryDesc
+            {
+                All = new[] { ComponentType.ReadOnly<ShipMemberID>() },
+                None = new[] { ComponentType.ReadOnly<CleanupEntity>(), ComponentType.ReadOnly<PendingDestruction>() },
+            };
+            using (var q = em.CreateEntityQuery(desc))
             using (var ids = q.ToComponentDataArray<ShipMemberID>(Allocator.TempJob))
             {
                 ulong sum = 0, xor = 0;
@@ -63,7 +73,7 @@ namespace ShipbreakerCoop.Game
                     ulong v = Mix(ids[i].Value.Value);
                     sum += v; xor ^= v;
                 }
-                return $"fingerprint: {ids.Length} parts, {sum ^ (xor * 31):x16}";
+                return $"{ids.Length}:{sum ^ (xor * 31):x16}";
             }
         }
 

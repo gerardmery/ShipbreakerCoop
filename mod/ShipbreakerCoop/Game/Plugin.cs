@@ -21,7 +21,7 @@ namespace ShipbreakerCoop.Game
     public sealed class Plugin : BaseUnityPlugin
     {
         public const string Guid = "shipbreakercoop";
-        public const string Version = "0.1.1";
+        public const string Version = "0.2.0";
         public const float SendRate = 20f;
 
         internal static ManualLogSource Log;
@@ -32,6 +32,7 @@ namespace ShipbreakerCoop.Game
         SteamLobby mLobby;
         readonly LocalPlayerSource mLocal = new LocalPlayerSource();
         readonly PuppetManager mPuppets = new PuppetManager();
+        readonly ShipSync mShip = new ShipSync();
         readonly Stopwatch mClock = Stopwatch.StartNew();
         double mNextSend, mNextStatus;
         string mPending;       // "host" or "join:<target>" waiting for Steam to come up
@@ -45,6 +46,7 @@ namespace ShipbreakerCoop.Game
             Log = Logger;
             mOpt = CoopOptions.Load(Config, Environment.GetCommandLineArgs());
             mHarmony = new Harmony(Guid);
+            mHarmony.CreateClassProcessor(typeof(ShipSync.SavePatch)).Patch(); // never save the host's ship as ours
             if (!string.IsNullOrEmpty(mOpt.SaveDir)) SaveRedirect.Apply(mOpt.SaveDir, mHarmony);
             mLocal.Fake = mOpt.Fake;
             Application.runInBackground = true;
@@ -133,6 +135,9 @@ namespace ShipbreakerCoop.Game
         {
             mSession = new CoopSession(t, () => Now, LocalName(), Version);
             mSession.Log += m => Log.LogInfo(m);
+            mSession.BlobReceived += mShip.OnBlob;
+            mSession.ReportReceived += mShip.OnReport;
+            mShip.Reset();
             mLastError = "";
             return mSession;
         }
@@ -166,6 +171,7 @@ namespace ShipbreakerCoop.Game
                 mSession.SendLocalState(mLocal.Capture());
             }
             mPuppets.Update(mSession, now, mLocal.Scene);
+            mShip.Update(mSession);
 
             if (mOpt.StatusFile != null && now >= mNextStatus) { mNextStatus = now + 0.5; WriteStatus(); LabScreenshot(now); }
         }
@@ -204,10 +210,15 @@ namespace ShipbreakerCoop.Game
             if (Input.GetKeyDown(KeyCode.F10)) { Stop(); mPending = null; Log.LogInfo("left the session"); }
 
             bool ctrl = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl);
+            if (!ctrl && Input.GetKeyDown(KeyCode.F6))
+            {
+                if (mSession != null && mSession.Role == Role.Host) mShip.HostSync(mSession);
+                else mLastError = "F6 (sync ship) is for the host";
+            }
             if (mOpt.Dev && ctrl && !mShipBusy)
             {
                 if (Input.GetKeyDown(KeyCode.F5)) RunShipOp("save", () => ShipFiles.SaveCurrentAsync(ProbeShipPath));
-                if (Input.GetKeyDown(KeyCode.F6)) RunShipOp("load", () => ShipFiles.LoadIntoBayAsync(ProbeShipPath));
+                if (Input.GetKeyDown(KeyCode.F6)) RunShipOp("load", async () => await ShipFiles.LoadIntoBayAsync(ProbeShipPath) != null);
             }
         }
 
@@ -261,10 +272,30 @@ namespace ShipbreakerCoop.Game
                 if (mLobby != null && mLobby.Status.Length > 0) sb.Append($"\n{mLobby.Status}" + (mLobby.IsHost ? "   Shift+F8 invite" : ""));
                 foreach (var p in mPuppets.All)
                     sb.Append($"\n  {p.Name}: {(p.Visible ? "here" : "elsewhere")}");
-                sb.Append("\nF10 leave");
+                sb.Append("\n" + ShipLine(s));
+                sb.Append(s.Role == Role.Host ? "\nF6 sync ship   F10 leave" : "\nF10 leave");
             }
             if (mLastError.Length > 0) sb.Append("\n" + mLastError);
             return sb.ToString();
+        }
+
+        string ShipLine(CoopSession s)
+        {
+            if (s.Role == Role.Host)
+            {
+                foreach (var b in s.Senders)
+                    if (!b.Done && !b.Failed) return $"Ship: sending {b.Progress * 100:F0}%";
+            }
+            else if (s.IncomingProgress >= 0) return $"Ship: receiving {s.IncomingProgress * 100:F0}%";
+            switch (mShip.Current)
+            {
+                case ShipSync.State.Idle: return s.Role == Role.Host ? "Ship: not synced (F6 in the bay)" : "Ship: own ship (host can sync)";
+                case ShipSync.State.Loaded:
+                    var ok = mShip.InSync(s.Role == Role.Host ? s.PlayerCount - 1 : 1);
+                    return ok == true ? "Ship: IN SYNC" : ok == false ? "Ship: MISMATCH (see log)" : "Ship: loaded, waiting for the others";
+                case ShipSync.State.Failed: return "Ship: sync failed: " + mShip.Detail;
+                default: return "Ship: " + mShip.Detail;
+            }
         }
 
         // ------------------------------------------------------------------ lab status file
@@ -286,6 +317,16 @@ namespace ShipbreakerCoop.Game
                 sb.Append($"\"players\":{mSession.PlayerCount},\"rtt\":{mSession.RttSeconds.ToString("R", c)},");
                 sb.Append($"\"badPackets\":{mSession.BadPackets},\"fps\":{F(1f / Mathf.Max(Time.unscaledDeltaTime, 1e-4f))},");
                 sb.Append($"\"local\":{{\"scene\":\"{Esc(local.Scene)}\",\"hasPlayer\":{(local.HasPlayer ? "true" : "false")},\"pos\":{V(local.Pos.ToUnity())}}},");
+                var inSync = mShip.InSync(mSession.Role == Role.Host ? mSession.PlayerCount - 1 : 1);
+                sb.Append($"\"ship\":{{\"state\":\"{mShip.Current}\",\"syncId\":{mShip.SyncId},\"local\":\"{Esc(mShip.LocalFingerprint)}\",");
+                sb.Append($"\"inSync\":{(inSync == true ? "true" : inSync == false ? "false" : "null")},\"line\":\"{Esc(ShipLine(mSession))}\",\"peers\":{{");
+                bool firstPeer = true;
+                foreach (var kv in mShip.PeerFingerprints)
+                {
+                    if (!firstPeer) sb.Append(','); firstPeer = false;
+                    sb.Append($"\"{kv.Key}\":\"{Esc(kv.Value)}\"");
+                }
+                sb.Append("}},");
                 sb.Append("\"remotes\":[");
                 bool first = true;
                 foreach (var kv in mSession.Remotes)

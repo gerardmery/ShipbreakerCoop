@@ -347,6 +347,45 @@ def smoke(args):
     return finish(checks, before, backup, had_prefs)
 
 
+def shipsync(args):
+    """Watch the running copies until a ship sync completes (the owner puts both in the bay and presses F6 on
+    the host). Pass: both IN SYNC for the same sync id, identical fingerprints, nothing went wrong."""
+    end = time.time() + args.timeout
+    last = None
+    while time.time() < end:
+        h, c = read_status("host"), read_status("client")
+        if h and c and "ship" in h and "ship" in c:
+            hs, cs = h["ship"], c["ship"]
+            line = f"host: {hs['line']} | client: {cs['line']}"
+            if line != last:
+                log(line)
+                last = line
+            if "Failed" in (hs["state"], cs["state"]):
+                break
+            if hs["inSync"] is not None and cs["inSync"] is not None:
+                break
+        time.sleep(1)
+    h, c = read_status("host"), read_status("client")
+    hs, cs = (h or {}).get("ship", {}), (c or {}).get("ship", {})
+    checks = [
+        ("both copies report a ship state", bool(hs) and bool(cs)),
+        ("host loaded its own copy", hs.get("state") == "Loaded"),
+        ("client loaded the host's ship", cs.get("state") == "Loaded"),
+        ("same sync id", hs.get("syncId") and hs.get("syncId") == cs.get("syncId")),
+        (f"identical fingerprints (host {hs.get('local')}, client {cs.get('local')})",
+         bool(hs.get("local")) and hs.get("local") == cs.get("local")),
+        ("host sees IN SYNC", hs.get("inSync") is True),
+        ("client sees IN SYNC", cs.get("inSync") is True),
+        ("no bad packets", (h or {}).get("badPackets") == 0 and (c or {}).get("badPackets") == 0),
+    ]
+    fails = 0
+    for what, good in checks:
+        print(("  ok    " if good else "  FAIL  ") + what)
+        fails += 0 if good else 1
+    print("ALL OK" if fails == 0 else f"RESULT: FAIL ({fails} of {len(checks)})")
+    return fails == 0
+
+
 def finish(checks, before, backup, had_prefs):
     if had_prefs:
         r = subprocess.run(["reg", "import", backup], capture_output=True, text=True)
@@ -368,7 +407,7 @@ IDENTITY_EXE_SHA = "7fc94c77eb1ed54b956f8572663f7893bb7fc407d2c1d3450f87343f93a3
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("cmd", choices=["provision", "deploy", "up", "down", "status", "smoke"])
+    ap.add_argument("cmd", choices=["provision", "deploy", "up", "down", "status", "smoke", "shipsync"])
     ap.add_argument("--force", action="store_true")
     ap.add_argument("--allow-foreign", action="store_true")
     ap.add_argument("--timeout", type=float, default=120)
@@ -386,6 +425,8 @@ def main():
         status(a)
     elif a.cmd == "smoke":
         sys.exit(0 if smoke(a) else 1)
+    elif a.cmd == "shipsync":
+        sys.exit(0 if shipsync(a) else 1)
 
 
 if __name__ == "__main__":
