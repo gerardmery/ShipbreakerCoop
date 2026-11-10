@@ -15,3 +15,6 @@ dist/
 
 # Private: real session logs (Steam IDs, names, user paths), identity notes
 local/
+
+# Local agent worktrees (tools/qwen.py)
+.qwen/
