@@ -11,3 +11,4 @@ decomp.zip
 # Build/tool output
 __pycache__/
 *.pyc
+dist/
