@@ -56,7 +56,7 @@ at a time. Claude is building M2 "ship sync" in mod/ and tests/ meanwhile, so st
 - Print the destination folder and the files copied. Run it once and paste the output into HANDOFF.md.
 
 ## T8. Friend's session log (when it arrives)
-- [ ] When `local\logs\2026-11-10-steam\friend-0.1.0.log` exists: list every line from `[Shipbreaker Co-op]`,
+- [x] (Done by Claude, 2026-11-10; skip.) When `local\logs\2026-11-10-steam\friend-0.1.0.log` exists: list every line from `[Shipbreaker Co-op]`,
   any line with `Exception` or `Error`, and compare with `host-0.1.0.log`: does each join/leave on one side
   have a matching line on the other? Note anything one-sided.
 - Output: `local\logs\2026-11-10-steam\SUMMARY.md` (local/ is private and not in git).
