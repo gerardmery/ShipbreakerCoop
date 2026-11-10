@@ -12,3 +12,6 @@ decomp.zip
 __pycache__/
 *.pyc
 dist/
+
+# Private: real session logs (Steam IDs, names, user paths), identity notes
+local/
