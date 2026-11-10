@@ -81,8 +81,9 @@ Observations (O), derived (D), guesses (G) and unknowns (U) are kept apart, as c
   O: Player lives in scene 'master_game_container' in both copies, independent of the ship.
   Fixed after: status fps used smoothDeltaTime, reads 10000 while paused (timeScale 0); now unscaled.
 - Steam test (2026-11-10, owner + a friend on separate PCs, two Steam accounts, owner report; logs not yet read):
-  host F8 + Shift+F8 invite, friend joined; movement "as smooth" as the lab; friend leaving removed the puppet.
-  Still to test over Steam: Join Game from friends list, invite with the game closed (+connect_lobby),
+  host F8 + Shift+F8 invite, friend joined; movement "as smooth" as the lab; friend leaving removed the puppet;
+  friend rejoined via Join Game from the Steam friends list.
+  Still to test over Steam: invite with the game closed (+connect_lobby),
   hard kill (10 s timeout), network drop and auto-rejoin, client death, alt-tab, hab<->bay, long session,
   3 players (relay).
 
