@@ -174,6 +174,10 @@ Observations (O), derived (D), guesses (G) and unknowns (U) are kept apart, as c
   (owner check). IN SYNC again: 859:229a076868c020f2 on both (862 before the cut). Ship sync = initial state
   incl. cuts. Not yet: live changes between syncs (cuts, moved pieces) - next M2 step.
 
+- Run 9 (moved panels): owner moved panels on the host, F6: they land in about the same spot on the client
+  (owner check). IN SYNC: 860:da32aa30d166807a on both; live fingerprints still equal afterwards.
+  Three IN SYNC runs in a row (fresh ship, after a cut, after moving panels).
+
 ## Log
 - 2026-11-10 (later): M2 step 1 (ship sync) working in the lab after 8 runs; see "Milestone 2 findings".
 - 2026-11-10: triage of player/Steam/save paths (above). Built M1: core + tests + plugin + lab.
