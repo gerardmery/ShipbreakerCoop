@@ -79,6 +79,25 @@ def setup_worktree(task):
     return wt, branch
 
 
+def main_tree_state():
+    """{path: content hash} of every tracked-but-modified or untracked file in the main tree
+    (git-ignored files such as local/ and .qwen/ are left out)."""
+    import hashlib
+    state = {}
+    for line in git("status", "--porcelain", "--untracked-files=all").splitlines():
+        path = line[3:].strip().strip('"')
+        full = os.path.join(REPO, path)
+        try:
+            state[path] = hashlib.sha256(open(full, "rb").read()).hexdigest() if os.path.isfile(full) else "dir"
+        except OSError:
+            state[path] = "unreadable"
+    for name in ("docs/SYNC_LIST.md", "docs/NOTES.md", "docs/HANDOFF.md", "docs/QWEN_TASKS.md"):
+        full = os.path.join(REPO, name)
+        if os.path.isfile(full):
+            state.setdefault(name, hashlib.sha256(open(full, "rb").read()).hexdigest())
+    return state
+
+
 def cleanup(task):
     wt = worktree_path(task)
     junction = os.path.join(wt, "decomp")
@@ -111,6 +130,9 @@ def main():
     body = task_body(task) if a.task else a.prompt
     prompt = PREAMBLE.format(allowed=", ".join(allowed), task=task, body=body)
 
+    # Safety net: the main tree must not change during the run. (2026-11-10: without --standalone,
+    # `opencode run` handed the task to the shared background service, which wrote into the main tree.)
+    main_before = main_tree_state()
     wt, branch = setup_worktree(task)
     os.makedirs(os.path.join(REPO, "local", "qwen-runs"), exist_ok=True)
     log = os.path.join(REPO, "local", "qwen-runs", f"{datetime.datetime.now():%Y-%m-%d_%H%M}-{task}.log")
@@ -119,7 +141,8 @@ def main():
     t0 = datetime.datetime.now()
     try:
         with open(log, "w", encoding="utf-8") as out:
-            r = subprocess.run([OPENCODE, "run", "-m", MODEL, "--auto", "--archived", "--title", f"ShipbreakerCoop {task}", prompt],
+            r = subprocess.run([OPENCODE, "run", "--standalone", "-m", MODEL, "--auto", "--archived",
+                                "--title", f"ShipbreakerCoop {task}", prompt],
                                cwd=wt, stdout=out, stderr=subprocess.STDOUT, timeout=a.timeout_min * 60)
         code = r.returncode
     except subprocess.TimeoutExpired:
@@ -129,7 +152,11 @@ def main():
     changed = [l[3:] for l in git("status", "--porcelain", cwd=wt).splitlines() if l.strip()]
     changed = [c for c in changed if c.rstrip("/") != "decomp"]
     outside = [c for c in changed if c.replace("\\", "/") not in allowed]
+    main_after = main_tree_state()
+    leaked = sorted(set(main_after.items()) ^ set(main_before.items()))
     print(f"[qwen] agent exit: {code} after {mins:.1f} min")
+    if leaked:
+        print(f"[qwen] !!! MAIN TREE CHANGED during the run (isolation failed): {sorted({p for p, _ in leaked})}")
     print(f"[qwen] changed: {changed or 'nothing'}")
     if outside:
         print(f"[qwen] OUT OF SCOPE: {outside}")
@@ -141,6 +168,8 @@ def main():
     if a.unload and os.path.exists(OLLAMA):
         subprocess.run([OLLAMA, "stop", MODEL.split("/", 1)[1]], capture_output=True)
         print("[qwen] model unloaded")
+    if leaked:
+        return 3
     if code not in (0,):
         return 2
     return 1 if outside else 0
