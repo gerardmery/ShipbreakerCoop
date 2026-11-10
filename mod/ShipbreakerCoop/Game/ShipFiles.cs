@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Threading.Tasks;
 using BBI.Unity.Game;
+using HarmonyLib;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
@@ -83,6 +84,8 @@ namespace ShipbreakerCoop.Game
             var t0 = DateTime.UtcNow;
             int manifests = 0, pending = 0, frames = 0;
             var parents = new System.Collections.Generic.List<int>();
+            var stale = new System.Collections.Generic.List<int>();
+            int cleanups = 0;
             using (var qm = em.CreateEntityQuery(ComponentType.ReadOnly<ShipManifest>()))
             using (var qp = em.CreateEntityQuery(ComponentType.ReadOnly<PendingDestruction>()))
             {
@@ -91,13 +94,22 @@ namespace ShipbreakerCoop.Game
                     manifests = qm.CalculateEntityCount();
                     pending = qp.CalculateEntityCount();
                     parents = OldHierarchyParents();
-                    if (manifests == 0 && pending == 0 && parents.Count == 0) break;
+                    stale = StaleParents(parents);
+                    if (manifests == 0 && pending == 0 && stale.Count == 0) break;
+                    // The game only runs CleanUpOldParents at the end of UpdateHierarchyParents and skips it while the
+                    // graph has queued changes; after a despawn the leftovers stayed for 10+ s (lab run 6). Run it.
+                    if (manifests == 0 && pending == 0 && stale.Count > 0 && !GraphHasQueuedChanges())
+                    {
+                        cleanups++;
+                        AccessTools.Method(typeof(HierarchyProcessor), "CleanUpOldParents")?.Invoke(HierarchyProcessor.Instance, null);
+                    }
                     await Task.Yield(); frames++;
                 }
             }
             string left = parents.Count == 0 ? "none" : string.Join(",", parents);
-            var msg = $"old ship gone after {(DateTime.UtcNow - t0).TotalMilliseconds:F0} ms / {frames} waits " +
-                      $"(manifests left {manifests}, pending destruction {pending}, hierarchy parents left: {left})";
+            var msg = $"old ship gone after {(DateTime.UtcNow - t0).TotalMilliseconds:F0} ms / {frames} waits, {cleanups} cleanup calls " +
+                      $"(manifests left {manifests}, pending destruction {pending}, hierarchy parents left: {left}; " +
+                      $"stale: {(stale.Count == 0 ? "none" : string.Join(",", stale))}; graph queued changes: {GraphHasQueuedChanges()})";
             Plugin.Log.LogInfo(msg);
             Trace(msg);
         }
@@ -108,6 +120,22 @@ namespace ShipbreakerCoop.Game
         /// (HierarchyProcessor.cs:697). Loading before that reused a leftover body for every key the old and new
         /// ship share, so the saved bodies were never created (lab run 5: client skipped keys 84-98).
         /// </summary>
+        /// <summary>Parent keys that are no longer active graph keys: what CleanUpOldParents would remove.</summary>
+        static System.Collections.Generic.List<int> StaleParents(System.Collections.Generic.List<int> parents)
+        {
+            var stale = new System.Collections.Generic.List<int>();
+            var gs = World.DefaultGameObjectInjectionWorld.GetOrCreateSystem<StructureGraphSystem>();
+            var active = gs.ActiveGraphKeys;
+            foreach (var k in parents) if (!active.Contains(k)) stale.Add(k);
+            return stale;
+        }
+
+        static bool GraphHasQueuedChanges()
+        {
+            var gs = World.DefaultGameObjectInjectionWorld.GetOrCreateSystem<StructureGraphSystem>();
+            return gs.HasQueuedChanges;
+        }
+
         static System.Collections.Generic.List<int> OldHierarchyParents()
         {
             var keys = new System.Collections.Generic.List<int>();

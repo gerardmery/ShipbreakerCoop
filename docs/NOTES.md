@@ -159,5 +159,11 @@ Observations (O), derived (D), guesses (G) and unknowns (U) are kept apart, as c
   (HierarchyProcessor.cs:697), which it does right after a despawn. Fix: after despawn also wait until
   HierarchyProcessor.mHierarchyParents is empty (ShipFiles.WaitForOldShipGone).
 
+- Run 6 (wait for parents to clear): waiting does not help. After 10 s the client still held 19 old parents
+  (38,60,84..100; host 2: 95,96) and again skipped keys 84..94. CleanUpOldParents runs only at the end of
+  UpdateHierarchyParents (HierarchyProcessor.cs:679) and returns early while the graph has queued changes.
+  Fix: during the wait, call HierarchyProcessor.CleanUpOldParents (private, via reflection) when the graph has no
+  queued changes, until no parent with an inactive key is left.
+
 ## Log
 - 2026-11-10: triage of player/Steam/save paths (above). Built M1: core + tests + plugin + lab.
