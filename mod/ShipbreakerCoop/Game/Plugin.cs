@@ -262,7 +262,7 @@ namespace ShipbreakerCoop.Game
                 sb.Append($"\"t\":{Now.ToString("R", c)},\"version\":\"{Version}\",\"pid\":{Process.GetCurrentProcess().Id},");
                 sb.Append($"\"role\":\"{mSession.Role}\",\"connected\":{(mSession.Connected ? "true" : "false")},\"localId\":{mSession.LocalId},");
                 sb.Append($"\"players\":{mSession.PlayerCount},\"rtt\":{mSession.RttSeconds.ToString("R", c)},");
-                sb.Append($"\"badPackets\":{mSession.BadPackets},\"fps\":{F(1f / Mathf.Max(Time.smoothDeltaTime, 1e-4f))},");
+                sb.Append($"\"badPackets\":{mSession.BadPackets},\"fps\":{F(1f / Mathf.Max(Time.unscaledDeltaTime, 1e-4f))},");
                 sb.Append($"\"local\":{{\"scene\":\"{Esc(local.Scene)}\",\"hasPlayer\":{(local.HasPlayer ? "true" : "false")},\"pos\":{V(local.Pos.ToUnity())}}},");
                 sb.Append("\"remotes\":[");
                 bool first = true;

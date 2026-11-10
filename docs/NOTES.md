@@ -74,8 +74,13 @@ Observations (O), derived (D), guesses (G) and unknowns (U) are kept apart, as c
 ## Milestone 1 status
 - DONE and tested: engine-free core (42 checks, 12/12 mutation twins caught), plugin, UDP lab transport,
   lab tool, two-copy smoke test (14 checks, ALL OK x3), puppet renders (screenshot evidence).
-- NOT tested: real players in a shipbreaking level (smoke uses a fake circling player in the main menu);
-  Steam transport/lobby/invites (needs a second Steam account on another PC; one account can't test it).
+- In-level test PASSED (2026-11-10, owner playtest, two lab copies, UDP, each on a different ship):
+  client puppet "extremely smooth", follows all angles floating around the bay; host died and respawned
+  with no connection loss (mod re-found the new Player); host leaving the bay -> "Host: elsewhere".
+  Logs: ~14k states each way, 5-6 ms rtt, 0 bad packets, 0 exceptions.
+  O: Player lives in scene 'master_game_container' in both copies, independent of the ship.
+  Fixed after: status fps used smoothDeltaTime, reads 10000 while paused (timeScale 0); now unscaled.
+- NOT tested: Steam transport/lobby/invites (needs a second Steam account on another PC; one account can't test it).
 
 ## Log
 - 2026-11-10: triage of player/Steam/save paths (above). Built M1: core + tests + plugin + lab.
