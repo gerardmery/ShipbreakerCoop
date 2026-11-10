@@ -47,6 +47,15 @@ namespace ShipbreakerCoop.Core
         public event Action<byte, uint, byte[]> BlobReceived;
         /// <summary>A report from another player: (from player id, kind, text).</summary>
         public event Action<byte, byte, string> ReportReceived;
+        /// <summary>Client: a host game event, delivered in order: (epoch, kind, payload).</summary>
+        public event Action<uint, byte, byte[]> GameEventReceived;
+
+        readonly EventLog mEventLog = new EventLog();
+        readonly Dictionary<ulong, EventSender> mEventSenders = new Dictionary<ulong, EventSender>();
+        readonly EventReceiver mEventReceiver = new EventReceiver();
+        public uint EventEpoch => Role == Role.Host ? mEventLog.Epoch : mEventReceiver.Epoch;
+        public uint EventsSentOrDelivered => Role == Role.Host ? (uint)mEventLog.Count : mEventReceiver.Delivered;
+        public uint MinEventAcked { get { uint m = uint.MaxValue; foreach (var e in mEventSenders.Values) m = Math.Min(m, e.Acked); return m == uint.MaxValue ? 0 : m; } }
 
         readonly List<BlobSender> mSenders = new List<BlobSender>();
         readonly Dictionary<uint, BlobReceiver> mReceivers = new Dictionary<uint, BlobReceiver>();
@@ -108,6 +117,16 @@ namespace ShipbreakerCoop.Core
             return id;
         }
 
+        /// <summary>Host: start a new event epoch (a new ship sync). Earlier events are dropped everywhere.</summary>
+        public void ResetEvents(uint epoch) { if (Role == Role.Host) mEventLog.Reset(epoch); }
+
+        /// <summary>Host: append an event for every client (ordered, re-sent until acked). Returns its sequence.</summary>
+        public uint BroadcastEvent(byte kind, byte[] payload)
+        {
+            if (Role != Role.Host) throw new InvalidOperationException("only the host broadcasts events");
+            return mEventLog.Append(kind, payload);
+        }
+
         /// <summary>Client: to the host. Host: to every client.</summary>
         public void SendReport(byte kind, string text)
         {
@@ -144,6 +163,16 @@ namespace ShipbreakerCoop.Core
                 var snd = b;
                 snd.Tick(now, rto, (bytes, reliable) => Send(snd.Peer, bytes, reliable));
             }
+            if (Role == Role.Host)
+            {
+                foreach (var p in mPeersByAddr.Values)
+                {
+                    if (!mEventSenders.TryGetValue(p.Addr, out var es)) mEventSenders[p.Addr] = es = new EventSender(p.Addr);
+                    var addr = p.Addr;
+                    es.Tick(mEventLog, now, rto, bytes => Send(addr, bytes, false));
+                }
+            }
+            if (Role == Role.Client) mEventReceiver.Tick(now, bytes => Send(mHostAddr, bytes, false));
             if (Role == Role.Client)
             {
                 float prog = -1;
@@ -222,6 +251,11 @@ namespace ShipbreakerCoop.Core
                     case MsgType.Ping: Send(from, Protocol.Pong(Protocol.ReadTime(r)), false); break;
                     case MsgType.Pong: if (peer != null) RttSeconds = now - Protocol.ReadTime(r); break;
                     case MsgType.Bye: if (peer != null) DropPeer(peer, "left"); break;
+                    case MsgType.GameEventAck:
+                        if (peer == null) return;
+                        Protocol.ReadGameEventAck(r, out var eepoch, out var edone);
+                        if (mEventSenders.TryGetValue(from, out var esnd)) esnd.OnAck(eepoch, edone);
+                        break;
                     case MsgType.BlobAck:
                         if (peer == null) return;
                         Protocol.ReadBlobAck(r, out var aid, out var contig, out var map);
@@ -293,6 +327,12 @@ namespace ShipbreakerCoop.Core
                         }
                         break;
                     }
+                    case MsgType.GameEvent:
+                    {
+                        var payload = Protocol.ReadGameEvent(r, out var gepoch, out var gseq, out var gkind);
+                        mEventReceiver.OnEvent(gepoch, gseq, gkind, payload, (k, p) => GameEventReceived?.Invoke(gepoch, k, p));
+                        break;
+                    }
                     case MsgType.Report:
                         Protocol.ReadReport(r, out var hfrom, out var hkind, out var htext);
                         ReportReceived?.Invoke(hfrom, hkind, htext);
@@ -349,6 +389,7 @@ namespace ShipbreakerCoop.Core
             mPeersByAddr.Remove(p.Addr);
             mRemotes.Remove(p.Id);
             mSenders.RemoveAll(b => b.Peer == p.Addr);
+            mEventSenders.Remove(p.Addr);
             Info($"player {p.Id} '{p.Name}' {why}");
             mNextRoster = 0;
         }

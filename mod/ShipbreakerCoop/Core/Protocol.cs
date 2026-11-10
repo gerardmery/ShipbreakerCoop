@@ -19,6 +19,8 @@ namespace ShipbreakerCoop.Core
         BlobChunk = 10,  // sender -> receiver: id, index, bytes
         BlobAck = 11,    // receiver -> sender: id, chunks received contiguously, map of the next 64
         Report = 12,     // small typed text (e.g. ship fingerprint): client -> host, host -> clients
+        GameEvent = 13,  // host -> client: epoch, seq, kind, payload (ordered, reliable via acks)
+        GameEventAck = 14, // client -> host: epoch, events delivered contiguously
     }
 
     public enum ByeReason : byte { Leaving = 0, NotJoined = 1 }
@@ -51,7 +53,7 @@ namespace ShipbreakerCoop.Core
     public static class Protocol
     {
         public const ushort Magic = 0x4253; // "SB"
-        public const byte Version = 3; // 2: Bye carries a reason. 3: blobs, reports
+        public const byte Version = 4; // 2: Bye carries a reason. 3: blobs, reports. 4: game events
         public const int MaxString = 64;
         public const int HeaderSize = 4;
 
@@ -132,7 +134,33 @@ namespace ShipbreakerCoop.Core
             return End(w);
         }
 
+        public static byte[] GameEvent(uint epoch, uint seq, byte kind, byte[] payload)
+        {
+            var w = Begin(MsgType.GameEvent);
+            w.Write(epoch); w.Write(seq); w.Write(kind); w.Write((ushort)payload.Length); w.Write(payload);
+            return End(w);
+        }
+
+        public static byte[] GameEventAck(uint epoch, uint delivered)
+        {
+            var w = Begin(MsgType.GameEventAck);
+            w.Write(epoch); w.Write(delivered);
+            return End(w);
+        }
+
         // ---------- reading ----------
+
+        public static byte[] ReadGameEvent(BinaryReader r, out uint epoch, out uint seq, out byte kind)
+        {
+            epoch = r.ReadUInt32(); seq = r.ReadUInt32(); kind = r.ReadByte();
+            int len = r.ReadUInt16();
+            var b = r.ReadBytes(len);
+            if (b.Length != len) throw new EndOfStreamException();
+            return b;
+        }
+
+        public static void ReadGameEventAck(BinaryReader r, out uint epoch, out uint delivered)
+        { epoch = r.ReadUInt32(); delivered = r.ReadUInt32(); }
 
         public static void ReadBlobStart(BinaryReader r, out uint id, out byte kind, out int length, out ulong hash)
         { id = r.ReadUInt32(); kind = r.ReadByte(); length = r.ReadInt32(); hash = r.ReadUInt64(); }

@@ -30,6 +30,8 @@ static class Program
         Run("blob: edge sizes", BlobEdgeSizes);
         Run("blob: corruption, impostors, host gone", BlobFailures);
         Run("report: relay and spoofing", Reports);
+        Run("events: ordered and reliable over a lossy network", EventsLossy);
+        Run("events: epoch reset and late join", EventsEpochs);
         Run("session: real UDP on loopback", SessionUdp);
         Console.WriteLine(sFails == 0 ? $"ALL OK ({sChecks} checks)" : $"RESULT: FAIL ({sFails}/{sChecks} checks failed)");
         return sFails == 0 ? 0 : 1;
@@ -405,6 +407,63 @@ static class Program
         net.Inject(2, 1, Protocol.Report(CoopSession.HostId, 1, "spoof")); // no client can own the host's id
         host.Tick();
         Check(host.BadPackets == bad + 1 && !seen["host"].Any(x => x.EndsWith("spoof")), "report with someone else's id dropped");
+    }
+
+    static List<string> Collect(CoopSession c)
+    {
+        var got = new List<string>();
+        c.GameEventReceived += (ep, k, p) => got.Add($"{ep}:{k}:{System.Text.Encoding.UTF8.GetString(p)}");
+        return got;
+    }
+
+    static void EventsLossy()
+    {
+        var net = new FakeNet(new Random(41)) { Loss = 0.3, MinLatency = 0.03, Jitter = 0.1, Duplicate = 0.1 };
+        var (host, c1, c2, _) = BlobSetup(net);
+        var g1 = Collect(c1); var g2 = Collect(c2);
+        host.ResetEvents(7);
+        var expect = new List<string>();
+        for (int i = 1; i <= 500; i++)
+        {
+            host.BroadcastEvent((byte)(i % 5), System.Text.Encoding.UTF8.GetBytes("cut" + i));
+            expect.Add($"7:{i % 5}:cut{i}");
+            if (i % 25 == 0) net.RunFor(0.1, new[] { host, c1, c2 }, true);
+        }
+        for (int i = 0; i < 60 && (g1.Count < 500 || g2.Count < 500); i++) net.RunFor(0.5, new[] { host, c1, c2 }, true);
+        Check(g1.SequenceEqual(expect), $"client 1 got all 500 in order, once ({g1.Count})");
+        Check(g2.SequenceEqual(expect), $"client 2 got all 500 in order, once ({g2.Count})");
+        net.RunFor(2, new[] { host, c1, c2 }, true);
+        Check(host.MinEventAcked == 500, $"host saw every client ack everything ({host.MinEventAcked})");
+        bool threw = false;
+        try { host.BroadcastEvent(1, new byte[EventLog.MaxPayload + 1]); } catch (ArgumentException) { threw = true; }
+        Check(threw, "oversized event refused");
+    }
+
+    static void EventsEpochs()
+    {
+        var net = new FakeNet(new Random(42)) { Loss = 0.2, Jitter = 0.05 };
+        var (host, c1, c2, _) = BlobSetup(net);
+        var g1 = Collect(c1);
+        host.ResetEvents(1);
+        for (int i = 1; i <= 20; i++) host.BroadcastEvent(0, new[] { (byte)i });
+        net.RunFor(5, new[] { host, c1, c2 }, true);
+        Check(g1.Count == 20, "epoch 1 delivered");
+        // keep an old packet to replay later
+        var stale = Protocol.GameEvent(1, 1, 0, new byte[] { 99 }); // seq 1: would be delivered at once if accepted
+        host.ResetEvents(2);
+        for (int i = 1; i <= 10; i++) host.BroadcastEvent(0, new[] { (byte)(100 + i) });
+        net.RunFor(5, new[] { host, c1, c2 }, true);
+        Check(g1.Count == 30 && g1[20].StartsWith("2:") && c1.EventEpoch == 2, "new epoch starts at seq 1 and is delivered");
+        net.Inject(1, 2, stale);
+        c1.Tick();
+        Check(g1.Count == 30 && c1.EventEpoch == 2, "a stale-epoch event is ignored and the epoch stays");
+
+        // late joiner gets the whole current epoch
+        var c3 = MakeSession(net, 4, "Late");
+        var g3 = Collect(c3);
+        c3.Connect(1);
+        for (int i = 0; i < 20 && g3.Count < 10; i++) net.RunFor(1, new[] { host, c1, c2, c3 }, true);
+        Check(g3.Count == 10 && g3[0].StartsWith("2:"), $"late joiner receives the current epoch ({g3.Count})");
     }
 
     static void SessionUdp()
