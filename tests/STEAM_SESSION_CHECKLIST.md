@@ -9,7 +9,7 @@ Ticked = done in a real session. Source: owner report unless a log is named. Mod
 
 ## 2. Leaving and dropping out
 - [x] Friend quits normally: suit vanishes on host, 2026-11-10
-- [ ] Friend's game killed in Task Manager: suit gone within ~10 s, friend rejoins
+- [x] Friend's game killed in Task Manager: suit gone "after a few seconds" (timeout path), friend rejoined via Steam, back at the menu showing "elsewhere", 2026-11-10
 - [ ] Host leaves (F10): friend sees the host disappear
 
 ## 3. Network blips
