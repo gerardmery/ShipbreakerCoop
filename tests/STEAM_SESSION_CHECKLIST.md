@@ -1,6 +1,6 @@
 # Steam session checklist (milestone 1, two accounts on two PCs)
 
-Ticked = done in a real session. Source: owner report unless a log is named. Mod 0.1.0, zip sha256 7f47d7d1…1043.
+Ticked = done in a real session. Source: owner report unless a log is named. Mod 0.1.0 (sections ticked so far), zip sha256 7f47d7d1…1043. Fix: 0.1.1.
 
 ## 1. Ways of joining
 - [x] Invite while the friend's game is running (host F8, Shift+F8, friend accepts), 2026-11-10
@@ -10,7 +10,7 @@ Ticked = done in a real session. Source: owner report unless a log is named. Mod
 ## 2. Leaving and dropping out
 - [x] Friend quits normally: suit vanishes on host, 2026-11-10
 - [x] Friend's game killed in Task Manager: suit gone "after a few seconds" (timeout path), friend rejoined via Steam, back at the menu showing "elsewhere", 2026-11-10
-- [ ] Host leaves (F10): friend sees the host disappear
+- [~] Host leaves: suit disappeared, but the friend stayed in a dead lobby retrying forever (0.1.0 bug; also: re-hosting let him straight back in without an invite). Fixed in 0.1.1, retest
 
 ## 3. Network blips
 - [ ] Friend's Wi-Fi off ~5 s: carries on by itself

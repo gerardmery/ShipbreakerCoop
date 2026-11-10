@@ -25,6 +25,7 @@ static class Program
         Run("session: 3 players over a lossy network", SessionLossy);
         Run("session: timeouts, bye, rejoin", SessionTimeouts);
         Run("session: version reject, spoof, strangers", SessionSecurity);
+        Run("session: host leaves, admit filter", SessionHostLeaves);
         Run("session: real UDP on loopback", SessionUdp);
         Console.WriteLine(sFails == 0 ? $"ALL OK ({sChecks} checks)" : $"RESULT: FAIL ({sFails}/{sChecks} checks failed)");
         return sFails == 0 ? 0 : 1;
@@ -250,6 +251,31 @@ static class Program
         net.RunFor(3, list.ToArray(), false);
         Check(host.PlayerCount == CoopSession.MaxPlayers, $"host capped at {CoopSession.MaxPlayers} ({host.PlayerCount})");
         Check(extra.Count(x => x.LastError == "server full") == 2, "the extra joiners got 'server full'");
+    }
+
+    static void SessionHostLeaves()
+    {
+        var net = new FakeNet(new Random(9));
+        var host = MakeSession(net, 1, "Host");
+        var c = MakeSession(net, 2, "Ann");
+        host.StartHost(); c.Connect(1);
+        net.RunFor(2, new[] { host, c }, true);
+        Check(c.Connected, "setup");
+
+        host.Shutdown();               // host presses F10 / quits: Bye(Leaving)
+        net.RunFor(3, new[] { c }, true);
+        Check(c.Role == Role.Off && c.LastError == "Host left the session", $"client ends the session ({c.Role}, '{c.LastError}')");
+        Check(c.Remotes.Count == 0, "host puppet removed");
+
+        // Host re-hosts: the old client must not walk back in unless the filter admits it.
+        var host2 = new CoopSession(net.Endpoint(1), () => net.Now, "Host", "0.1.0") { AdmitFilter = id => id == 3 };
+        net.Track(host2, 1);
+        host2.StartHost();
+        var stale = MakeSession(net, 2, "Ann"); stale.Connect(1);
+        var invited = MakeSession(net, 3, "Bob"); invited.Connect(1);
+        net.RunFor(3, new[] { host2, stale, invited }, true);
+        Check(!stale.Connected && host2.PlayerCount == 2, $"player outside the lobby is not admitted (players {host2.PlayerCount})");
+        Check(invited.Connected, "lobby member is admitted");
     }
 
     static void SessionUdp()

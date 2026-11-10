@@ -44,6 +44,11 @@ namespace ShipbreakerCoop.Core
 
         public event Action<string> Log;
 
+        /// <summary>Host: who may join. Checked on every Hello (Steam keeps old sessions open, so the
+        /// transport's session-request check alone let a player from an earlier lobby straight back in).
+        /// Null = anyone who can reach us (UDP lab).</summary>
+        public Func<ulong, bool> AdmitFilter;
+
         readonly ITransport mTransport;
         readonly Func<double> mClock;
         readonly Dictionary<byte, RemotePlayer> mRemotes = new Dictionary<byte, RemotePlayer>();
@@ -144,6 +149,7 @@ namespace ShipbreakerCoop.Core
                 {
                     case MsgType.Hello:
                         Protocol.ReadHello(r, out var name, out var ver);
+                        if (peer == null && AdmitFilter != null && !AdmitFilter(from)) { BadPackets++; return; }
                         if (ver != ModVersion) { Send(from, Protocol.Reject($"mod version {ver} != host {ModVersion}"), true); return; }
                         if (peer == null)
                         {
@@ -159,7 +165,7 @@ namespace ShipbreakerCoop.Core
                         break;
                     case MsgType.PlayerState:
                         // A client we dropped (timeout) still thinks it is in: tell it to say hello again.
-                        if (peer == null) { Send(from, Protocol.Bye(), false); return; }
+                        if (peer == null) { Send(from, Protocol.Bye(ByeReason.NotJoined), false); return; }
                         var s = Protocol.ReadPlayerState(r);
                         if (s.PlayerId != peer.Id) { BadPackets++; return; } // no spoofing other players
                         Accept(s, now);
@@ -206,11 +212,25 @@ namespace ShipbreakerCoop.Core
                     case MsgType.Ping: Send(from, Protocol.Pong(Protocol.ReadTime(r)), false); break;
                     case MsgType.Pong: RttSeconds = now - Protocol.ReadTime(r); break;
                     case MsgType.Bye:
-                        Info("host closed the session");
-                        LocalId = 0; mRemotes.Clear();
+                        if (Protocol.ReadBye(r) == ByeReason.NotJoined)
+                        {
+                            // The host dropped us (timeout) but we still thought we were in: rejoin.
+                            if (LocalId != 0) Info("host no longer knows us, rejoining");
+                            LocalId = 0; mRemotes.Clear();
+                        }
+                        else EndAsClient("Host left the session");
                         break;
                 }
             }
+        }
+
+        /// <summary>Client: the session is over for good (host left). LastError says why.</summary>
+        public void EndAsClient(string why)
+        {
+            if (Role != Role.Client) return;
+            Info(why);
+            LastError = why;
+            Role = Role.Off; LocalId = 0; mRemotes.Clear();
         }
 
         void Accept(in PlayerStateMsg s, double now)

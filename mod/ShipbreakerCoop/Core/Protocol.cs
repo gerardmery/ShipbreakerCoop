@@ -13,9 +13,11 @@ namespace ShipbreakerCoop.Core
         PlayerState = 4, // anyone: one player's pose (host relays client states)
         Ping = 5,
         Pong = 6,
-        Bye = 7,         // leaving
+        Bye = 7,         // reason: Leaving, or NotJoined (host to an unknown sender: say hello again)
         Roster = 8,      // host -> clients: every player id + name (re-sent, idempotent)
     }
+
+    public enum ByeReason : byte { Leaving = 0, NotJoined = 1 }
 
     public struct PlayerStateMsg
     {
@@ -45,7 +47,7 @@ namespace ShipbreakerCoop.Core
     public static class Protocol
     {
         public const ushort Magic = 0x4253; // "SB"
-        public const byte Version = 1;
+        public const byte Version = 2; // 2: Bye carries a reason
         public const int MaxString = 64;
         public const int HeaderSize = 4;
 
@@ -74,7 +76,11 @@ namespace ShipbreakerCoop.Core
 
         public static byte[] Ping(double t) { var w = Begin(MsgType.Ping); w.Write(t); return End(w); }
         public static byte[] Pong(double t) { var w = Begin(MsgType.Pong); w.Write(t); return End(w); }
-        public static byte[] Bye() => End(Begin(MsgType.Bye));
+        public static byte[] Bye(ByeReason reason = ByeReason.Leaving)
+        { var w = Begin(MsgType.Bye); w.Write((byte)reason); return End(w); }
+
+        public static ByeReason ReadBye(BinaryReader r) =>
+            r.BaseStream.Position < r.BaseStream.Length ? (ByeReason)r.ReadByte() : ByeReason.Leaving;
 
         public static byte[] Roster(IList<RosterEntry> entries)
         {

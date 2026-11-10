@@ -243,7 +243,7 @@ def up(args, fake=True):
         save_state(st)
         log(f"{name}: started pid {proc.pid}")
         bep = os.path.join(d, "BepInEx", "LogOutput.log")
-        ok = wait_log(bep, "Shipbreaker Co-op 0.1.0 loaded", 180, lambda: proc.poll() is None)
+        ok = wait_log(bep, " loaded (transport ", 180, lambda: proc.poll() is None)
         log(f"{name}: plugin {'loaded' if ok else 'NOT loaded (see ' + bep + ')'}")
         if not ok:
             return False

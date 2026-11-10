@@ -21,7 +21,7 @@ namespace ShipbreakerCoop.Game
     public sealed class Plugin : BaseUnityPlugin
     {
         public const string Guid = "shipbreakercoop";
-        public const string Version = "0.1.0";
+        public const string Version = "0.1.1";
         public const float SendRate = 20f;
 
         internal static ManualLogSource Log;
@@ -99,6 +99,7 @@ namespace ShipbreakerCoop.Game
                 mLobby = new SteamLobby(Version);
                 t.AcceptFilter = id => mLobby.IsMember(id);
                 var s = NewSession(t);
+                s.AdmitFilter = id => mLobby != null && mLobby.IsMember(id);
                 mLobby.Hosted += () => s.StartHost();
                 mLobby.JoinRequested += id => { mPending = "join:" + id; Stop(); };
                 mLobby.Host();
@@ -122,6 +123,7 @@ namespace ShipbreakerCoop.Game
                 t.AcceptFilter = id => id == host;
                 var s = NewSession(t);
                 mLobby.JoinedHost += owner => { host = owner; s.Connect(owner); };
+                mLobby.HostLeft += () => s.EndAsClient("Host left the session");
                 mLobby.JoinRequested += id => { mPending = "join:" + id; Stop(); };
                 mLobby.Join(lobbyId);
             }

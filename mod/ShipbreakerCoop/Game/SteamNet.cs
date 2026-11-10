@@ -107,6 +107,8 @@ namespace ShipbreakerCoop.Game
         CallResult<LobbyEnter_t> mEntered;
         Callback<GameLobbyJoinRequested_t> mJoinRequested;
         Callback<GameRichPresenceJoinRequested_t> mRichJoin;
+        Callback<LobbyChatUpdate_t> mChatUpdate;
+        ulong mHostId;
 
         public CSteamID Lobby { get; private set; } = CSteamID.Nil;
         public bool IsHost { get; private set; }
@@ -114,6 +116,7 @@ namespace ShipbreakerCoop.Game
         public event Action Hosted;
         public event Action<ulong> JoinedHost;      // host's SteamID
         public event Action<ulong> JoinRequested;   // lobby id from an invite while running
+        public event Action HostLeft;               // client: the lobby owner left or dropped
 
         public SteamLobby(string version)
         {
@@ -122,6 +125,18 @@ namespace ShipbreakerCoop.Game
             mEntered = CallResult<LobbyEnter_t>.Create(OnEntered);
             mJoinRequested = Callback<GameLobbyJoinRequested_t>.Create(e => JoinRequested?.Invoke(e.m_steamIDLobby.m_SteamID));
             mRichJoin = Callback<GameRichPresenceJoinRequested_t>.Create(OnRichJoin);
+            mChatUpdate = Callback<LobbyChatUpdate_t>.Create(OnChatUpdate);
+        }
+
+        void OnChatUpdate(LobbyChatUpdate_t u)
+        {
+            const uint gone = 0x2 | 0x4 | 0x8 | 0x10; // left, disconnected, kicked, banned
+            if (IsHost || Lobby == CSteamID.Nil || u.m_ulSteamIDLobby != Lobby.m_SteamID) return;
+            if (u.m_ulSteamIDUserChanged == mHostId && (u.m_rgfChatMemberStateChange & gone) != 0)
+            {
+                Plugin.Log.LogInfo($"host left the lobby (state 0x{u.m_rgfChatMemberStateChange:x})");
+                HostLeft?.Invoke();
+            }
         }
 
         public static ulong MySteamId => SteamUser.GetSteamID().m_SteamID;
@@ -163,6 +178,7 @@ namespace ShipbreakerCoop.Game
                 Plugin.Log.LogError(Status); Leave(); return;
             }
             var owner = SteamMatchmaking.GetLobbyOwner(Lobby).m_SteamID;
+            mHostId = owner;
             Status = $"in lobby {Lobby.m_SteamID}, host {owner}";
             Plugin.Log.LogInfo(Status + (ver != mVersion ? $" (host mod {ver}, ours {mVersion})" : ""));
             JoinedHost?.Invoke(owner);
@@ -197,7 +213,7 @@ namespace ShipbreakerCoop.Game
         public void Dispose()
         {
             Leave();
-            mCreated?.Dispose(); mEntered?.Dispose(); mJoinRequested?.Dispose(); mRichJoin?.Dispose();
+            mCreated?.Dispose(); mEntered?.Dispose(); mJoinRequested?.Dispose(); mRichJoin?.Dispose(); mChatUpdate?.Dispose();
         }
     }
 }
