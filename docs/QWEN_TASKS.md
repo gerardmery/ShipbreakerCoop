@@ -1,6 +1,11 @@
 # Tasks for the local agent (qwen3-coder:30b)
 
-Written by Claude, 2026-11-10. Do them in order; each fits in 32k context if you grep first and open one file
+Written by Claude, 2026-11-10.
+
+**Status 2026-11-10: paused.** Research tasks (T3-T6) moved to Claude: local-agent research runs drifted off task
+or rewrote files. The local agent is kept for mechanical tasks with a checkable result (T7). Run one with
+`python -I tools/qwen.py T7` (isolated worktree; Claude reviews and merges).
+ Do them in order; each fits in 32k context if you grep first and open one file
 at a time. Claude is building M2 "ship sync" in mod/ and tests/ meanwhile, so stay out of those.
 
 ## Rules for every task
@@ -32,23 +37,23 @@ at a time. Claude is building M2 "ship sync" in mod/ and tests/ meanwhile, so st
 - Why it matters: in co-op a client must not save the host's ship into the friend's career.
 - Output: docs/SYNC_LIST.md section "## 6. Shift system" (create it), subsection "Ship in progress save".
 
-## T3. Salvage receptacles and payout
+## T3. (moved to Claude) Salvage receptacles and payout
 - [ ] Start: `FurnaceVolume.cs`, `PreFurnaceVolume.cs`. Then grep class names containing `Processor`, `Barge`,
   `Receptacle`, `Salvage` in decomp/BBI.Unity.Game. For each receptacle: the class, the method that accepts an
   object, how the value is credited (method or event name), and the event posted.
 - Output: docs/SYNC_LIST.md section "### Salvage" (replace the "TODO search" line).
 
-## T4. Shift timer and end of shift
+## T4. (moved to Claude) Shift timer and end of shift
 - [ ] grep `Shift`, `Workshift`, `Timer`, `Oxygen` class names; find where the shift clock counts down, what
   ends a shift, and the events posted. Keep it to names, files and lines.
 - Output: docs/SYNC_LIST.md section "## 6. Shift system", subsection "Timer".
 
-## T5. Grab, grapple and tether: who posts the events and what they carry
+## T5. (moved to Claude) Grab, grapple and tether: who posts the events and what they carry
 - [ ] `ObjectTetheredEvent`, `TetherChangedEvent`, `GrappleEvent`: for each, the fields, and every place it is
   posted (grep `new <Event>(` and `<Event>.GetEvent(`). Research only, no design.
 - Output: docs/SYNC_LIST.md section "### Grapple" / "### Tether", add "Posted by:" and "Fields:" lines.
 
-## T6. What AntiCheatToolKit guards
+## T6. (moved to Claude) What AntiCheatToolKit guards
 - [ ] grep `Obscured` and `CodeStage` in decomp/. List which fields/values use obscured types (file:line).
 - Output: docs/SYNC_LIST.md, "Key findings", one new numbered item. Tick the "Check what AntiCheatToolKit
   protects" item under "Next".
