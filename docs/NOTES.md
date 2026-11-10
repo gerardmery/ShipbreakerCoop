@@ -165,5 +165,10 @@ Observations (O), derived (D), guesses (G) and unknowns (U) are kept apart, as c
   Fix: during the wait, call HierarchyProcessor.CleanUpOldParents (private, via reflection) when the graph has no
   queued changes, until no parent with an inactive key is left.
 
+- Run 7 (call CleanUpOldParents): **IN SYNC**. Host and client 862:01627d2ca9b1686c, 21 roots each, all matched
+  (0 fresh). One cleanup call per side, old ship gone in 9-14 ms. 0 exceptions, 0 bad packets.
+  Still left after despawn on both: 2 parents with still-active keys (host 98,99; client 106,107). Harmless
+  here; would matter if the host's saved ship uses one of those keys. Watch in later runs.
+
 ## Log
 - 2026-11-10: triage of player/Steam/save paths (above). Built M1: core + tests + plugin + lab.
