@@ -87,5 +87,27 @@ Observations (O), derived (D), guesses (G) and unknowns (U) are kept apart, as c
   hard kill (10 s timeout), network drop and auto-rejoin, client death, alt-tab, hab<->bay, long session,
   3 players (relay).
 
+## Milestone 2 findings (2026-11-10)
+
+### O: ship file (decomp ShipPreview.cs, DebugSaveLoadService.cs, ModuleService.cs)
+- `ShipPreview.Write`: header (end pos, version 5) + generated data (seed, construction asset ref, name, rewards,
+  the whole serialized `ModuleGroup` layout) + spawned data (ECS snapshot of every `LynxSaveable` entity:
+  cut meshes via MeshSaveLoadUtil, machine states). This is the game's own "ship in progress" save.
+- Swap in the bay without a level reload (the debug service's path): `CurrentShipPreview.DespawnModuleAsync`,
+  `ShipPreview.CreateFromFileAsync`, `SpawnModuleFromSaveDataAsync(spawnPoint)`. The spawn raises
+  `ShipAllSpawnWrapperEvent(SpawnFromSave)` so `ModuleService.CurrentShipPreview` follows the new ship.
+- `ShipMemberID` = FNV-1a hash chain from the seed (`FromShipPreview`, `CreateShipObjectHash`): stable
+  part identity across machines for the same ship.
+
+### O: probe in the lab (dev keys Ctrl+F5 save / Ctrl+F6 load, owner playtest)
+- Save: 685 KB, 72 ms, 1817 entities in 171 chunks ('The Freddi', seed 390720898). Load: 1.1-1.8 s.
+- A: save, cut a panel and a beam, load -> ship back to the saved state. B: processing after the swap pays out
+  normally. C: the client's file loaded in the host copy -> same ship in both bays, puppets around it.
+- Part fingerprint (count + hash of ShipMemberIDs) after loading the same file: host and client identical
+  (1450 parts, ccbeb32ba3994524; client twice, host from a different starting ship).
+- But a live ship (850 parts at save) and the same ship freshly loaded (1450) differ in ID'd entities.
+  D: sync = host saves, then BOTH load the file; never keep the host's live ship and ship a copy.
+- U: why the counts differ (saved entities vs entities spawned on load); file size of a fresh, uncut ship.
+
 ## Log
 - 2026-11-10: triage of player/Steam/save paths (above). Built M1: core + tests + plugin + lab.
