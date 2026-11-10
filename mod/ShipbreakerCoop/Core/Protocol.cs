@@ -15,6 +15,10 @@ namespace ShipbreakerCoop.Core
         Pong = 6,
         Bye = 7,         // reason: Leaving, or NotJoined (host to an unknown sender: say hello again)
         Roster = 8,      // host -> clients: every player id + name (re-sent, idempotent)
+        BlobStart = 9,   // sender -> receiver: id, kind, length, hash (re-sent until acked)
+        BlobChunk = 10,  // sender -> receiver: id, index, bytes
+        BlobAck = 11,    // receiver -> sender: id, chunks received contiguously, map of the next 64
+        Report = 12,     // small typed text (e.g. ship fingerprint): client -> host, host -> clients
     }
 
     public enum ByeReason : byte { Leaving = 0, NotJoined = 1 }
@@ -47,7 +51,7 @@ namespace ShipbreakerCoop.Core
     public static class Protocol
     {
         public const ushort Magic = 0x4253; // "SB"
-        public const byte Version = 2; // 2: Bye carries a reason
+        public const byte Version = 3; // 2: Bye carries a reason. 3: blobs, reports
         public const int MaxString = 64;
         public const int HeaderSize = 4;
 
@@ -100,7 +104,54 @@ namespace ShipbreakerCoop.Core
             return End(w);
         }
 
+        public static byte[] BlobStart(uint id, byte kind, int length, ulong hash)
+        {
+            var w = Begin(MsgType.BlobStart);
+            w.Write(id); w.Write(kind); w.Write(length); w.Write(hash);
+            return End(w);
+        }
+
+        public static byte[] BlobChunk(uint id, uint index, byte[] data, int off, int len)
+        {
+            var w = Begin(MsgType.BlobChunk);
+            w.Write(id); w.Write(index); w.Write((ushort)len); w.Write(data, off, len);
+            return End(w);
+        }
+
+        public static byte[] BlobAck(uint id, uint contiguous, ulong map)
+        {
+            var w = Begin(MsgType.BlobAck);
+            w.Write(id); w.Write(contiguous); w.Write(map);
+            return End(w);
+        }
+
+        public static byte[] Report(byte fromId, byte kind, string text)
+        {
+            var w = Begin(MsgType.Report);
+            w.Write(fromId); w.Write(kind); WriteStr(w, text);
+            return End(w);
+        }
+
         // ---------- reading ----------
+
+        public static void ReadBlobStart(BinaryReader r, out uint id, out byte kind, out int length, out ulong hash)
+        { id = r.ReadUInt32(); kind = r.ReadByte(); length = r.ReadInt32(); hash = r.ReadUInt64(); }
+
+        /// <summary>Returns the chunk bytes (a copy) with its index.</summary>
+        public static byte[] ReadBlobChunk(BinaryReader r, out uint id, out uint index)
+        {
+            id = r.ReadUInt32(); index = r.ReadUInt32();
+            int len = r.ReadUInt16();
+            var b = r.ReadBytes(len);
+            if (b.Length != len) throw new EndOfStreamException();
+            return b;
+        }
+
+        public static void ReadBlobAck(BinaryReader r, out uint id, out uint contiguous, out ulong map)
+        { id = r.ReadUInt32(); contiguous = r.ReadUInt32(); map = r.ReadUInt64(); }
+
+        public static void ReadReport(BinaryReader r, out byte fromId, out byte kind, out string text)
+        { fromId = r.ReadByte(); kind = r.ReadByte(); text = ReadStr(r); }
 
         /// <summary>Checks header. Returns false for foreign or other-version packets.</summary>
         public static bool TryReadHeader(byte[] data, int len, out MsgType type, out BinaryReader body)

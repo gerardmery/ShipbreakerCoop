@@ -26,6 +26,10 @@ static class Program
         Run("session: timeouts, bye, rejoin", SessionTimeouts);
         Run("session: version reject, spoof, strangers", SessionSecurity);
         Run("session: host leaves, admit filter", SessionHostLeaves);
+        Run("blob: 700 KB to 2 clients over a lossy network", BlobLossy);
+        Run("blob: edge sizes", BlobEdgeSizes);
+        Run("blob: corruption, impostors, host gone", BlobFailures);
+        Run("report: relay and spoofing", Reports);
         Run("session: real UDP on loopback", SessionUdp);
         Console.WriteLine(sFails == 0 ? $"ALL OK ({sChecks} checks)" : $"RESULT: FAIL ({sFails}/{sChecks} checks failed)");
         return sFails == 0 ? 0 : 1;
@@ -278,6 +282,131 @@ static class Program
         Check(invited.Connected, "lobby member is admitted");
     }
 
+    // ------------------------------------------------------------------ blobs and reports
+
+    static byte[] RandomBytes(int n, int seed) { var b = new byte[n]; new Random(seed).NextBytes(b); return b; }
+
+    static (CoopSession host, CoopSession c1, CoopSession c2, Dictionary<CoopSession, List<byte[]>> got) BlobSetup(FakeNet net)
+    {
+        var host = MakeSession(net, 1, "Host");
+        var c1 = MakeSession(net, 2, "Ann");
+        var c2 = MakeSession(net, 3, "Bob");
+        host.StartHost(); c1.Connect(1); c2.Connect(1);
+        for (int i = 0; i < 20 && !(c1.Connected && c2.Connected); i++) net.RunFor(1, new[] { host, c1, c2 }, true);
+        var got = new Dictionary<CoopSession, List<byte[]>> { [c1] = new List<byte[]>(), [c2] = new List<byte[]>() };
+        c1.BlobReceived += (k, id, d) => got[c1].Add(d);
+        c2.BlobReceived += (k, id, d) => got[c2].Add(d);
+        return (host, c1, c2, got);
+    }
+
+    static void BlobLossy()
+    {
+        var net = new FakeNet(new Random(11)) { Loss = 0.3, MinLatency = 0.04, Jitter = 0.08, Duplicate = 0.05 };
+        var (host, c1, c2, got) = BlobSetup(net);
+        Check(c1.Connected && c2.Connected, "setup");
+        var data = RandomBytes(700 * 1024, 1);
+        double t0 = net.Now;
+        host.SendBlobToClients(1, data);
+        double done = -1;
+        for (int i = 0; i < 60 && done < 0; i++)
+        {
+            net.RunFor(0.5, new[] { host, c1, c2 }, true);
+            if (got[c1].Count > 0 && got[c2].Count > 0) done = net.Now - t0;
+        }
+        Console.WriteLine($"      700 KB to 2 clients at 30% loss: {done:F1} s virtual, chunks sent {host.Senders.Sum(s => s.ChunksSent)} for {2 * Blob.ChunkCount(data.Length)} needed");
+        Check(done > 0 && done < 30, $"both clients got it ({done:F1} s)");
+        Check(got[c1].Count == 1 && got[c1][0].SequenceEqual(data), "client 1 bytes identical, delivered once");
+        Check(got[c2].Count == 1 && got[c2][0].SequenceEqual(data), "client 2 bytes identical, delivered once");
+        net.RunFor(3, new[] { host, c1, c2 }, true);
+        Check(host.Senders.All(s => s.Done), "host senders finished (acks got through)");
+        Check(c1.IncomingProgress < 0, "no transfer left in progress on the client");
+        Check(host.Senders.Sum(s => s.ChunksSent) < 4 * Blob.ChunkCount(data.Length), "resends stay bounded (< 2x per client)");
+
+        // A second blob of the same kind replaces the first and also arrives.
+        var data2 = RandomBytes(5000, 2);
+        host.SendBlobToClients(1, data2);
+        net.RunFor(10, new[] { host, c1, c2 }, true);
+        Check(got[c1].Count == 2 && got[c1][1].SequenceEqual(data2), "second blob arrives too");
+    }
+
+    static void BlobEdgeSizes()
+    {
+        foreach (int n in new[] { 0, 1, Blob.ChunkSize - 1, Blob.ChunkSize, Blob.ChunkSize + 1, Blob.ChunkSize * 64, Blob.ChunkSize * 65 + 7 })
+        {
+            var net = new FakeNet(new Random(n)) { Loss = 0.1 };
+            var (host, c1, c2, got) = BlobSetup(net);
+            var data = RandomBytes(n, n + 1);
+            host.SendBlobToClients(7, data);
+            net.RunFor(15, new[] { host, c1, c2 }, true);
+            Check(got[c1].Count == 1 && got[c1][0].SequenceEqual(data), $"{n} bytes arrive intact");
+        }
+    }
+
+    static void BlobFailures()
+    {
+        // Corruption: flip one byte inside the payload of the first chunk the host sends.
+        var net = new FakeNet(new Random(21));
+        var (host, c1, c2, got) = BlobSetup(net);
+        bool flipped = false;
+        net.Mangle = d =>
+        {
+            if (!flipped && d.Length > 20 && d[3] == (byte)MsgType.BlobChunk && BitConverter.ToUInt32(d, 8) == 5) { flipped = true; d = (byte[])d.Clone(); d[d.Length - 1] ^= 0x55; }
+            return d;
+        };
+        var sent = RandomBytes(20000, 3);
+        host.SendBlobToClients(1, sent);
+        net.RunFor(10, new[] { host, c1, c2 }, true);
+
+        Check(flipped, "the test really corrupted a chunk");
+        Check(got[c1].Count + got[c2].Count <= 1, "a corrupted payload is never delivered");
+
+        // Impostor: a stranger sends a blob to a client.
+        net = new FakeNet(new Random(22));
+        (host, c1, c2, got) = BlobSetup(net);
+        var fake = RandomBytes(100, 4);
+        net.Inject(66, 2, Protocol.BlobStart(999, 1, fake.Length, Blob.Hash(fake)));
+        net.Inject(66, 2, Protocol.BlobChunk(999, 0, fake, 0, fake.Length));
+        c1.Tick();
+        Check(got[c1].Count == 0, "client ignores blobs from anyone but the host");
+
+        // Host disappears mid-transfer: no delivery, no exception, receiver gives up.
+        net = new FakeNet(new Random(23)) { Loss = 0.2 };
+        (host, c1, c2, got) = BlobSetup(net);
+        host.SendBlobToClients(1, RandomBytes(300000, 5));
+        net.RunFor(0.3, new[] { host, c1, c2 }, true);
+        bool threw = false;
+        try { net.RunFor(Blob.Timeout + 2, new[] { c1, c2 }, true); } catch { threw = true; }
+        Check(!threw && got[c1].Count == 0, "partial blob is not delivered when the host vanishes");
+        Check(c1.IncomingProgress < 0 || c1.IncomingProgress < 1, "client is not stuck reporting a finished transfer");
+
+        // Clients can't send blobs; the host ignores blob packets from clients.
+        net.Inject(2, 1, Protocol.BlobStart(5, 1, 10, 0));
+        threw = false;
+        try { host.Tick(); } catch { threw = true; }
+        Check(!threw, "host ignores blob packets from clients");
+    }
+
+    static void Reports()
+    {
+        var net = new FakeNet(new Random(31)) { Loss = 0.0 };
+        var (host, c1, c2, _) = BlobSetup(net);
+        var seen = new Dictionary<string, List<string>> { ["host"] = new(), ["c1"] = new(), ["c2"] = new() };
+        host.ReportReceived += (f, k, t) => seen["host"].Add($"{f}/{k}/{t}");
+        c1.ReportReceived += (f, k, t) => seen["c1"].Add($"{f}/{k}/{t}");
+        c2.ReportReceived += (f, k, t) => seen["c2"].Add($"{f}/{k}/{t}");
+        c1.SendReport(1, "ann-fp");
+        host.SendReport(1, "host-fp");
+        net.RunFor(1, new[] { host, c1, c2 }, false);
+        Check(seen["host"].Contains($"{c1.LocalId}/1/ann-fp"), "host gets the client's report");
+        Check(seen["c2"].Contains($"{c1.LocalId}/1/ann-fp"), "host relays it to the other client");
+        Check(seen["c1"].Contains("1/1/host-fp") && seen["c2"].Contains("1/1/host-fp"), "clients get the host's report");
+        Check(!seen["c1"].Any(x => x.EndsWith("ann-fp")), "a client doesn't get its own report back");
+        int bad = host.BadPackets;
+        net.Inject(2, 1, Protocol.Report(CoopSession.HostId, 1, "spoof")); // no client can own the host's id
+        host.Tick();
+        Check(host.BadPackets == bad + 1 && !seen["host"].Any(x => x.EndsWith("spoof")), "report with someone else's id dropped");
+    }
+
     static void SessionUdp()
     {
         var clock = System.Diagnostics.Stopwatch.StartNew();
@@ -315,6 +444,7 @@ sealed class FakeNet
 {
     public double Now;
     public double Loss, MinLatency = 0.02, Jitter, Duplicate;
+    public Func<byte[], byte[]> Mangle; // tests: corrupt packets in flight
     readonly Random mRng;
     readonly List<(double at, ulong from, ulong to, byte[] data)> mInFlight = new();
     readonly Dictionary<ulong, Queue<(ulong, byte[])>> mInbox = new();
@@ -329,6 +459,7 @@ sealed class FakeNet
     void Send(ulong from, ulong to, byte[] data)
     {
         if (!mInbox.ContainsKey(to) || mRng.NextDouble() < Loss) return;
+        if (Mangle != null) data = Mangle(data);
         int copies = mRng.NextDouble() < Duplicate ? 2 : 1;
         for (int i = 0; i < copies; i++)
             mInFlight.Add((Now + MinLatency + mRng.NextDouble() * Jitter, from, to, data));

@@ -43,6 +43,17 @@ namespace ShipbreakerCoop.Core
         public int BadPackets { get; private set; }
 
         public event Action<string> Log;
+        /// <summary>A blob from the host arrived complete and verified: (kind, blob id, bytes).</summary>
+        public event Action<byte, uint, byte[]> BlobReceived;
+        /// <summary>A report from another player: (from player id, kind, text).</summary>
+        public event Action<byte, byte, string> ReportReceived;
+
+        readonly List<BlobSender> mSenders = new List<BlobSender>();
+        readonly Dictionary<uint, BlobReceiver> mReceivers = new Dictionary<uint, BlobReceiver>();
+        uint mNextBlobId = (uint)Environment.TickCount;
+        public IReadOnlyList<BlobSender> Senders => mSenders;
+        /// <summary>Client: progress of the newest incoming blob (0..1), or -1 when none.</summary>
+        public float IncomingProgress { get; private set; } = -1;
 
         /// <summary>Host: who may join. Checked on every Hello (Steam keeps old sessions open, so the
         /// transport's session-request check alone let a player from an earlier lobby straight back in).
@@ -86,6 +97,26 @@ namespace ShipbreakerCoop.Core
         /// <summary>Number of players connected, including us.</summary>
         public int PlayerCount => Role == Role.Host ? 1 + mPeersByAddr.Count : (Connected ? 1 + mRemotes.Count : 0);
 
+        /// <summary>Host: start sending a blob to every client. Returns its id.</summary>
+        public uint SendBlobToClients(byte kind, byte[] data)
+        {
+            if (Role != Role.Host) throw new InvalidOperationException("only the host sends blobs");
+            uint id = ++mNextBlobId;
+            mSenders.RemoveAll(x => x.Kind == kind); // a newer blob of the same kind replaces the old one
+            foreach (var p in mPeersByAddr.Values) mSenders.Add(new BlobSender(id, kind, p.Addr, data, mClock()));
+            Info($"sending blob {id} kind {kind} ({data.Length} bytes) to {mPeersByAddr.Count} player(s)");
+            return id;
+        }
+
+        /// <summary>Client: to the host. Host: to every client.</summary>
+        public void SendReport(byte kind, string text)
+        {
+            if (!Connected) return;
+            var bytes = Protocol.Report(LocalId, kind, text);
+            if (Role == Role.Host) foreach (var p in mPeersByAddr.Values) Send(p.Addr, bytes, true);
+            else Send(mHostAddr, bytes, true);
+        }
+
         public void SendLocalState(PlayerStateMsg s)
         {
             if (!Connected) return;
@@ -105,6 +136,23 @@ namespace ShipbreakerCoop.Core
                 try { Handle(from, data, now); }
                 catch (Exception e) when (e is EndOfStreamException || e is InvalidDataException || e is ArgumentException)
                 { BadPackets++; }
+            }
+
+            double rto = Math.Max(0.25, RttSeconds > 0 ? RttSeconds * 2 : 0.25);
+            foreach (var b in mSenders)
+            {
+                var snd = b;
+                snd.Tick(now, rto, (bytes, reliable) => Send(snd.Peer, bytes, reliable));
+            }
+            if (Role == Role.Client)
+            {
+                float prog = -1;
+                foreach (var rc in mReceivers.Values)
+                {
+                    rc.Tick(now, bytes => Send(mHostAddr, bytes, false));
+                    if (!rc.Complete) prog = rc.Progress;
+                }
+                IncomingProgress = prog;
             }
 
             if (Role == Role.Client)
@@ -174,6 +222,18 @@ namespace ShipbreakerCoop.Core
                     case MsgType.Ping: Send(from, Protocol.Pong(Protocol.ReadTime(r)), false); break;
                     case MsgType.Pong: if (peer != null) RttSeconds = now - Protocol.ReadTime(r); break;
                     case MsgType.Bye: if (peer != null) DropPeer(peer, "left"); break;
+                    case MsgType.BlobAck:
+                        if (peer == null) return;
+                        Protocol.ReadBlobAck(r, out var aid, out var contig, out var map);
+                        foreach (var b in mSenders) if (b.Peer == from && b.Id == aid) b.OnAck(contig, map, now);
+                        break;
+                    case MsgType.Report:
+                        if (peer == null) return;
+                        Protocol.ReadReport(r, out var rfrom, out var rkind, out var rtext);
+                        if (rfrom != peer.Id) { BadPackets++; return; }
+                        ReportReceived?.Invoke(rfrom, rkind, rtext);
+                        foreach (var other in mPeersByAddr.Values) if (other != peer) Send(other.Addr, data, true);
+                        break;
                 }
             }
             else if (Role == Role.Client)
@@ -211,6 +271,32 @@ namespace ShipbreakerCoop.Core
                         break;
                     case MsgType.Ping: Send(from, Protocol.Pong(Protocol.ReadTime(r)), false); break;
                     case MsgType.Pong: RttSeconds = now - Protocol.ReadTime(r); break;
+                    case MsgType.BlobStart:
+                    {
+                        Protocol.ReadBlobStart(r, out var bid, out var bkind, out var blen, out var bhash);
+                        if (mReceivers.TryGetValue(bid, out var known)) { known.Poke(); break; }
+                        mReceivers[bid] = new BlobReceiver(bid, bkind, blen, bhash, now);
+                        foreach (var old in new List<uint>(mReceivers.Keys))   // keep only the newest blob per kind
+                            if (old != bid && mReceivers[old].Kind == bkind) mReceivers.Remove(old);
+                        Info($"receiving blob {bid} kind {bkind} ({blen} bytes)");
+                        break;
+                    }
+                    case MsgType.BlobChunk:
+                    {
+                        var chunk = Protocol.ReadBlobChunk(r, out var cid, out var cidx);
+                        if (!mReceivers.TryGetValue(cid, out var rcv)) break; // start not seen yet: the sender re-sends it
+                        if (rcv.Complete) { rcv.Poke(); break; }
+                        if (rcv.OnChunk(cidx, chunk, 0, chunk.Length, now))
+                        {
+                            if (rcv.Verify()) { Info($"blob {cid} complete"); BlobReceived?.Invoke(rcv.Kind, cid, rcv.Data); }
+                            else { Info($"blob {cid} failed its hash check"); mReceivers.Remove(cid); }
+                        }
+                        break;
+                    }
+                    case MsgType.Report:
+                        Protocol.ReadReport(r, out var hfrom, out var hkind, out var htext);
+                        ReportReceived?.Invoke(hfrom, hkind, htext);
+                        break;
                     case MsgType.Bye:
                         if (Protocol.ReadBye(r) == ByeReason.NotJoined)
                         {
@@ -262,6 +348,7 @@ namespace ShipbreakerCoop.Core
         {
             mPeersByAddr.Remove(p.Addr);
             mRemotes.Remove(p.Id);
+            mSenders.RemoveAll(b => b.Peer == p.Addr);
             Info($"player {p.Id} '{p.Name}' {why}");
             mNextRoster = 0;
         }
