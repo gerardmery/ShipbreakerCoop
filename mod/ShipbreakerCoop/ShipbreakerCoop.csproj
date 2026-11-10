@@ -1,0 +1,53 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    BepInEx 5 plugin. Build:  dotnet build -c Release
+    Game DLLs are referenced from the install in place (never copied, never committed).
+    Override the install with -p:GameDir=... . Set DeployDirs (';'-separated BepInEx\plugins folders of
+    TEST copies) to copy the built plugin there after a build. Nothing is deployed by default.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net472</TargetFramework>
+    <AssemblyName>ShipbreakerCoop</AssemblyName>
+    <RootNamespace>ShipbreakerCoop</RootNamespace>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <GameDir Condition="'$(GameDir)' == ''">C:\Program Files (x86)\Steam\steamapps\common\Hardspace Shipbreaker</GameDir>
+    <ManagedDir>$(GameDir)\Shipbreaker_Data\Managed</ManagedDir>
+    <BepInExCore>$(GameDir)\BepInEx\core</BepInExCore>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <GameRef Include="$(BepInExCore)\BepInEx.dll" />
+    <GameRef Include="$(BepInExCore)\0Harmony.dll" />
+    <GameRef Include="$(ManagedDir)\UnityEngine.dll" />
+    <GameRef Include="$(ManagedDir)\UnityEngine.CoreModule.dll" />
+    <GameRef Include="$(ManagedDir)\UnityEngine.IMGUIModule.dll" />
+    <GameRef Include="$(ManagedDir)\UnityEngine.InputLegacyModule.dll" />
+    <GameRef Include="$(ManagedDir)\UnityEngine.PhysicsModule.dll" />
+    <GameRef Include="$(ManagedDir)\UnityEngine.TextRenderingModule.dll" />
+    <GameRef Include="$(ManagedDir)\UnityEngine.ScreenCaptureModule.dll" />
+    <GameRef Include="$(ManagedDir)\BBI.Unity.Game.dll" />
+    <GameRef Include="$(ManagedDir)\BBI.Unity.Core.dll" />
+    <GameRef Include="$(ManagedDir)\Carbon.Core.dll" />
+    <GameRef Include="$(ManagedDir)\Carbon.Core.Unity.dll" />
+    <GameRef Include="$(ManagedDir)\Unity.Entities.dll" />
+    <GameRef Include="$(ManagedDir)\Steamworks.NET.Plugins.dll" />
+    <GameRef Include="$(ManagedDir)\netstandard.dll" />
+    <Reference Include="@(GameRef)" Private="false" />
+  </ItemGroup>
+
+  <Target Name="CheckGameDir" BeforeTargets="ResolveAssemblyReferences">
+    <Error Condition="!Exists('$(ManagedDir)\BBI.Unity.Game.dll')" Text="Game not found at '$(GameDir)'. Pass -p:GameDir=..." />
+    <Error Condition="!Exists('$(BepInExCore)\BepInEx.dll')" Text="BepInEx 5 not found in '$(GameDir)\BepInEx\core'." />
+  </Target>
+
+  <Target Name="DeployToTestCopies" AfterTargets="Build" Condition="'$(DeployDirs)' != ''">
+    <ItemGroup><DeployDir Include="$(DeployDirs)" /></ItemGroup>
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="%(DeployDir.Identity)\ShipbreakerCoop" />
+    <Message Importance="high" Text="Deployed to %(DeployDir.Identity)\ShipbreakerCoop" />
+  </Target>
+</Project>

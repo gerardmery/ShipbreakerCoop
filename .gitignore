@@ -1,0 +1,13 @@
+# Game files and decompiled code never go in git (coop-anything rules)
+reference/ripped_project/
+decomp/
+*.dll
+*.pdb
+bin/
+obj/
+.vs/
+decomp.zip
+
+# Build/tool output
+__pycache__/
+*.pyc
