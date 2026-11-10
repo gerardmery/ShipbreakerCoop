@@ -115,6 +115,7 @@ namespace ShipbreakerCoop.Game
             };
             using (var q = em.CreateEntityQuery(desc))
             using (var ids = q.ToComponentDataArray<ShipMemberID>(Allocator.TempJob))
+            using (var ents = q.ToEntityArray(Allocator.TempJob))
             {
                 ulong sum = 0, xor = 0;
                 var raw = dumpPath != null ? new ulong[ids.Length] : null;
@@ -126,9 +127,25 @@ namespace ShipbreakerCoop.Game
                 }
                 if (raw != null)
                 {
-                    Array.Sort(raw);
+                    // id <TAB> component types, so a diff shows what kind of object each missing id is
                     var lines = new string[raw.Length];
-                    for (int i = 0; i < raw.Length; i++) lines[i] = raw[i].ToString("x16");
+                    for (int i = 0; i < raw.Length; i++)
+                    {
+                        string types;
+                        try
+                        {
+                            using (var ct = em.GetComponentTypes(ents[i], Allocator.Temp))
+                            {
+                                var names = new System.Collections.Generic.List<string>();
+                                for (int k = 0; k < ct.Length; k++) names.Add(ct[k].GetManagedType()?.Name ?? "?");
+                                names.Sort();
+                                types = string.Join(",", names);
+                            }
+                        }
+                        catch (Exception e) { types = "error:" + e.GetType().Name; }
+                        lines[i] = raw[i].ToString("x16") + "	" + types;
+                    }
+                    Array.Sort(lines, StringComparer.Ordinal);
                     Directory.CreateDirectory(Path.GetDirectoryName(dumpPath));
                     File.WriteAllLines(dumpPath, lines);
                 }

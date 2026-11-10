@@ -123,5 +123,13 @@ Observations (O), derived (D), guesses (G) and unknowns (U) are kept apart, as c
   SYNC_LIST section 7), the game's own path for a new ship; (b) despawn, wait until no old ShipManifest / pending
   destruction remains, then spawn; (c) load twice. Not decided.
 
+- Run 3 (wait-for-old-ship + step trace): no hang; every step done in ~1.3 s on both sides; the wait found the old
+  ship already gone (0 ms), so it was not the cause. Client 856 vs host 885: 29 missing on the client, 0 extra:
+  14 consecutive counter-like ids (0x53-0x60) + 15 hash ids. Client results vary per run (153, 855, 856): the
+  loss is nondeterministic. Next: dump component types per id to see what the missing objects are.
+- Client hang (run 2, client F6 pressed by mistake, then host F6): client Not Responding, ~0 CPU (blocked, not
+  looping), BepInEx log ended at "receiving blob" (buffered: last lines may be lost). Not reproduced in run 3.
+  U: cause. The flushed step trace (Coop/sync_trace.txt) is there to catch it next time.
+
 ## Log
 - 2026-11-10: triage of player/Steam/save paths (above). Built M1: core + tests + plugin + lab.
