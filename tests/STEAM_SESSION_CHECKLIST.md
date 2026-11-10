@@ -5,7 +5,7 @@ Ticked = done in a real session. Source: owner report unless a log is named. Mod
 ## 1. Ways of joining
 - [x] Invite while the friend's game is running (host F8, Shift+F8, friend accepts), 2026-11-10
 - [x] Join Game from the Steam friends list, 2026-11-10
-- [ ] Invite while the friend's game is closed (Steam launches the game with +connect_lobby): **testing now**
+- [x] Invite while the friend's game is closed: game launched, mod auto-joined at the main menu ("Host: elsewhere" until the friend enters the bay; M1 does not load the joiner into the host's level), 2026-11-10
 
 ## 2. Leaving and dropping out
 - [x] Friend quits normally: suit vanishes on host, 2026-11-10
